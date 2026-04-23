@@ -30,6 +30,7 @@ import (
 	"github.com/philterd/phield/internal/config"
 	"github.com/philterd/phield/internal/db"
 	"github.com/philterd/phield/internal/models"
+	"github.com/philterd/phield/internal/notifier"
 	"github.com/philterd/phield/internal/worker"
 )
 
@@ -54,7 +55,20 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	w := worker.NewWorker(mongoDB.DB, ingestChan, cfg.AlertThreshold)
+	var notifiers []notifier.Notifier
+	if cfg.SlackWebhook != "" {
+		notifiers = append(notifiers, notifier.NewSlackNotifier(cfg.SlackWebhook))
+	}
+	if cfg.PagerDutyRoutingKey != "" {
+		notifiers = append(notifiers, notifier.NewPagerDutyNotifier(cfg.PagerDutyRoutingKey, cfg.PagerDutySeverity))
+	}
+
+	var n notifier.Notifier
+	if len(notifiers) > 0 {
+		n = notifier.NewMultiNotifier(notifiers...)
+	}
+
+	w := worker.NewWorker(mongoDB.DB, ingestChan, cfg.AlertThreshold, n)
 	go w.Start(ctx)
 
 	// Setup API

@@ -22,20 +22,26 @@ import (
 )
 
 type Config struct {
-	MongoURI       string
-	AlertThreshold float64
-	Port           string
-	CertFile       string
-	KeyFile        string
+	MongoURI            string
+	AlertThreshold      float64
+	Port                string
+	CertFile            string
+	KeyFile             string
+	SlackWebhook        string
+	PagerDutyRoutingKey string
+	PagerDutySeverity   string
 }
 
 func Load() *Config {
 	return &Config{
-		MongoURI:       getEnv("PHIELD_MONGO_URI", "mongodb://localhost:27017/phield"),
-		AlertThreshold: getEnvAsFloat("PHIELD_ALERT_THRESHOLD", 0.2), // 20%
-		Port:           getEnv("PHIELD_PORT", "8080"),
-		CertFile:       getEnv("PHIELD_CERT_FILE", ""),
-		KeyFile:        getEnv("PHIELD_KEY_FILE", ""),
+		MongoURI:            getEnv("PHIELD_MONGO_URI", "mongodb://localhost:27017/phield"),
+		AlertThreshold:      getEnvAsFloat("PHIELD_ALERT_THRESHOLD", 0.2), // 20%
+		Port:                getEnv("PHIELD_PORT", "8080"),
+		CertFile:            getEnv("PHIELD_CERT_FILE", ""),
+		KeyFile:             getEnv("PHIELD_KEY_FILE", ""),
+		SlackWebhook:        getEnv("PHIELD_SLACK_WEBHOOK_URL", ""),
+		PagerDutyRoutingKey: getEnv("PHIELD_PAGERDUTY_ROUTING_KEY", ""),
+		PagerDutySeverity:   getEnv("PHIELD_PAGERDUTY_SEVERITY", "critical"),
 	}
 }
 

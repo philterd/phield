@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/philterd/phield/internal/models"
+	"github.com/philterd/phield/internal/notifier"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
@@ -31,13 +32,15 @@ type Worker struct {
 	db             *mongo.Database
 	ingestChan     chan models.PIIEntry
 	alertThreshold float64 // e.g. 0.2 for 20%
+	notifier       notifier.Notifier
 }
 
-func NewWorker(db *mongo.Database, ingestChan chan models.PIIEntry, threshold float64) *Worker {
+func NewWorker(db *mongo.Database, ingestChan chan models.PIIEntry, threshold float64, n notifier.Notifier) *Worker {
 	return &Worker{
 		db:             db,
 		ingestChan:     ingestChan,
 		alertThreshold: threshold,
+		notifier:       n,
 	}
 }
 
@@ -111,8 +114,15 @@ func (w *Worker) analyzeTrend(ctx context.Context, sourceID string, piiType stri
 		if avg > 0 {
 			diff := (float64(currentCount) - avg) / avg
 			if diff > w.alertThreshold {
-				log.Printf("[TREND BREACH] Source: %s, PII Type: %s, Current: %d, Avg: %.2f, Increase: %.2f%%",
+				msg := fmt.Sprintf("[TREND BREACH] Source: %s, PII Type: %s, Current: %d, Avg: %.2f, Increase: %.2f%%",
 					sourceID, piiType, currentCount, avg, diff*100)
+				log.Print(msg)
+
+				if w.notifier != nil {
+					if err := w.notifier.Notify(ctx, msg); err != nil {
+						log.Printf("Error sending notification: %v", err)
+					}
+				}
 			}
 		}
 	}

@@ -50,7 +50,7 @@ func TestTrendBreach(t *testing.T) {
 	defer db.Drop(ctx)
 
 	ingestChan := make(chan models.PIIEntry, 10)
-	w := NewWorker(db, ingestChan, 0.2) // 20% threshold
+	w := NewWorker(db, ingestChan, 0.2, nil) // 20% threshold, no notifier
 
 	// Helper to send entry
 	sendEntry := func(count int) {

@@ -26,6 +26,9 @@ services:
       - PHIELD_PORT=8443
       - PHIELD_CERT_FILE=/root/cert.pem
       - PHIELD_KEY_FILE=/root/key.pem
+      - PHIELD_SLACK_WEBHOOK_URL=
+      - PHIELD_PAGERDUTY_ROUTING_KEY=
+      - PHIELD_PAGERDUTY_SEVERITY=critical
     depends_on:
       mongodb:
         condition: service_healthy

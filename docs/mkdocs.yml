@@ -1,0 +1,18 @@
+site_name: Phield
+repo_url: https://github.com/philterd/phield
+site_url: https://philterd.github.io/phield/
+edit_uri: '?query=docs/docs/'
+copyright: Copyright 2026 Philterd, LLC
+site_author: philterd
+site_description: User guide for Phield, the PII drift and trend monitor.
+theme:
+  name: material
+  locale: en
+  palette:
+    primary: red
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Configuration: configuration.md
+  - API: api.md
+  - Notifications: notifications.md
