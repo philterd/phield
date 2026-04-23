@@ -22,7 +22,10 @@ services:
       - "8443:8443"
     environment:
       - PHIELD_MONGO_URI=mongodb://mongodb:27017/phield
+      - PHIELD_TREND_METHOD=percentage_delta
       - PHIELD_ALERT_THRESHOLD=0.2
+      - PHIELD_WINDOW_SIZE=24
+      - PHIELD_TREND_METHOD=percentage_delta
       - PHIELD_PORT=8443
       - PHIELD_CERT_FILE=/root/cert.pem
       - PHIELD_KEY_FILE=/root/key.pem

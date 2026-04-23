@@ -30,11 +30,16 @@ type Config struct {
 	SlackWebhook        string
 	PagerDutyRoutingKey string
 	PagerDutySeverity   string
+	WindowSize          int
+	TrendMethod         string
+	Sensitivity         float64
+	WarmUpCount         int
+	CooldownMinutes     int
 }
 
 func Load() *Config {
 	return &Config{
-		MongoURI:            getEnv("PHIELD_MONGO_URI", "mongodb://localhost:27017/phield"),
+		MongoURI:            getEnv("PHIELD_MONGO_URI", ""),
 		AlertThreshold:      getEnvAsFloat("PHIELD_ALERT_THRESHOLD", 0.2), // 20%
 		Port:                getEnv("PHIELD_PORT", "8080"),
 		CertFile:            getEnv("PHIELD_CERT_FILE", ""),
@@ -42,6 +47,11 @@ func Load() *Config {
 		SlackWebhook:        getEnv("PHIELD_SLACK_WEBHOOK_URL", ""),
 		PagerDutyRoutingKey: getEnv("PHIELD_PAGERDUTY_ROUTING_KEY", ""),
 		PagerDutySeverity:   getEnv("PHIELD_PAGERDUTY_SEVERITY", "critical"),
+		WindowSize:          getEnvAsInt("PHIELD_WINDOW_SIZE", 24),
+		TrendMethod:         getEnv("PHIELD_TREND_METHOD", "percentage_delta"),
+		Sensitivity:         getEnvAsFloat("PHIELD_SENSITIVITY", 3.0),
+		WarmUpCount:         getEnvAsInt("PHIELD_WARMUP_COUNT", 20),
+		CooldownMinutes:     getEnvAsInt("PHIELD_COOLDOWN_MINUTES", 60),
 	}
 }
 
@@ -55,6 +65,14 @@ func getEnv(key, fallback string) string {
 func getEnvAsFloat(key string, fallback float64) float64 {
 	valueStr := getEnv(key, "")
 	if value, err := strconv.ParseFloat(valueStr, 64); err == nil {
+		return value
+	}
+	return fallback
+}
+
+func getEnvAsInt(key string, fallback int) int {
+	valueStr := getEnv(key, "")
+	if value, err := strconv.Atoi(valueStr); err == nil {
 		return value
 	}
 	return fallback

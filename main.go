@@ -29,32 +29,34 @@ import (
 	"github.com/philterd/phield/internal/api"
 	"github.com/philterd/phield/internal/config"
 	"github.com/philterd/phield/internal/db"
-	"github.com/philterd/phield/internal/models"
 	"github.com/philterd/phield/internal/notifier"
-	"github.com/philterd/phield/internal/worker"
 )
 
 func main() {
+	log.Println("Phield is starting...")
 	cfg := config.Load()
 
-	// Connect to MongoDB
-	mongoDB, err := db.Connect(cfg.MongoURI)
-	if err != nil {
-		log.Fatalf("Failed to connect to MongoDB: %v", err)
-	}
-	defer func() {
-		if err := mongoDB.Client.Disconnect(context.Background()); err != nil {
-			log.Printf("Error disconnecting from MongoDB: %v", err)
+	var storage db.Storage
+
+	if cfg.MongoURI != "" {
+		log.Printf("Connecting to MongoDB at %s...", cfg.MongoURI)
+		mongoDB, err := db.Connect(cfg.MongoURI)
+		if err != nil {
+			log.Fatalf("Failed to connect to MongoDB: %v", err)
 		}
-	}()
+		defer func() {
+			if err := mongoDB.Client.Disconnect(context.Background()); err != nil {
+				log.Printf("Error disconnecting from MongoDB: %v", err)
+			}
+		}()
+		storage = mongoDB
+	} else {
+		log.Println("No MongoDB URI provided. Using ephemeral in-memory storage.")
+		log.Println("WARNING: Data is not persisted and will be lost on restart.")
+		storage = db.NewInMemoryStorage()
+	}
 
-	// Channel for ingestion
-	ingestChan := make(chan models.PIIEntry, 1000)
-
-	// Start Background Worker
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+	// Setup Notifiers
 	var notifiers []notifier.Notifier
 	if cfg.SlackWebhook != "" {
 		notifiers = append(notifiers, notifier.NewSlackNotifier(cfg.SlackWebhook))
@@ -68,12 +70,9 @@ func main() {
 		n = notifier.NewMultiNotifier(notifiers...)
 	}
 
-	w := worker.NewWorker(mongoDB.DB, ingestChan, cfg.AlertThreshold, n)
-	go w.Start(ctx)
-
 	// Setup API
 	r := gin.Default()
-	a := api.NewAPI(ingestChan)
+	a := api.NewAPI(storage, cfg.AlertThreshold, cfg.TrendMethod, cfg.WindowSize, cfg.Sensitivity, cfg.WarmUpCount, cfg.CooldownMinutes, n)
 	a.RegisterRoutes(r)
 
 	srv := &http.Server{
@@ -101,8 +100,6 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutting down server...")
-
-	cancel() // Stop background worker
 
 	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelShutdown()

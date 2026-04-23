@@ -15,4 +15,5 @@ nav:
   - Installation: installation.md
   - Configuration: configuration.md
   - API: api.md
+  - Trend Methods: trend_methods.md
   - Notifications: notifications.md
