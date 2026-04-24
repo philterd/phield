@@ -35,6 +35,8 @@ In a second terminal, start the simulated PII counts:
 ./simulate_data.sh
 ```
 
+## Configuration
+
 The script supports several environment variables for configuration:
 
 | Variable | Default | Description |
