@@ -4,7 +4,7 @@ Phield is a PII (Personally Identifiable Information) drift and trend monitor. I
 
 Phield is part of a suite that includes [Phinder](https://www.github.com/philterd/phinder) (discovery) and [Philter](https://www.github.com/philterd/philter) (redaction). Visit [Philterd](https://www.philterd.ai) for more details.
 
-See the [documentation](https://philterd.github.io/phield) for installation, configuration, API usage, and notification channels.
+See the [documentation](https://philterd.github.io/phield) for installation, configuration, API usage, and notification channels. Check out the [FAQ](faq.md) for common questions.
 
 ## Capabilities
 
