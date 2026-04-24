@@ -29,6 +29,7 @@ import (
 	"github.com/philterd/phield/internal/api"
 	"github.com/philterd/phield/internal/config"
 	"github.com/philterd/phield/internal/db"
+	"github.com/philterd/phield/internal/kafka"
 	"github.com/philterd/phield/internal/notifier"
 )
 
@@ -77,6 +78,13 @@ func main() {
 	a := api.NewAPI(storage, cfg.AlertThreshold, cfg.TrendMethod, cfg.WindowSize, cfg.Sensitivity, cfg.WarmUpCount, cfg.CooldownMinutes, n)
 	a.RegisterRoutes(r)
 
+	// Setup Kafka Consumer
+	var kafkaConsumer *kafka.Consumer
+	if cfg.KafkaBrokers != "" {
+		kafkaConsumer = kafka.NewConsumer(cfg.KafkaBrokers, cfg.KafkaTopic, cfg.KafkaGroupID, a)
+		go kafkaConsumer.Start(context.Background())
+	}
+
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
 		Handler: r,
@@ -102,6 +110,12 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutting down server...")
+
+	if kafkaConsumer != nil {
+		if err := kafkaConsumer.Close(); err != nil {
+			log.Printf("Error closing Kafka consumer: %v", err)
+		}
+	}
 
 	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelShutdown()

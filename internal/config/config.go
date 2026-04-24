@@ -35,6 +35,9 @@ type Config struct {
 	Sensitivity         float64
 	WarmUpCount         int
 	CooldownMinutes     int
+	KafkaBrokers        string
+	KafkaTopic          string
+	KafkaGroupID        string
 }
 
 func Load() *Config {
@@ -52,6 +55,9 @@ func Load() *Config {
 		Sensitivity:         getEnvAsFloat("PHIELD_SENSITIVITY", 3.0),
 		WarmUpCount:         getEnvAsInt("PHIELD_WARMUP_COUNT", 20),
 		CooldownMinutes:     getEnvAsInt("PHIELD_COOLDOWN_MINUTES", 60),
+		KafkaBrokers:        getEnv("PHIELD_KAFKA_BROKERS", ""),
+		KafkaTopic:          getEnv("PHIELD_KAFKA_TOPIC", "phield-pii-counts"),
+		KafkaGroupID:        getEnv("PHIELD_KAFKA_GROUP_ID", "phield"),
 	}
 }
 

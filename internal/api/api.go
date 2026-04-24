@@ -140,6 +140,15 @@ func (a *API) handleIngest(c *gin.Context) {
 		return
 	}
 
+	if err := a.ProcessIngest(c.Request.Context(), req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusAccepted, gin.H{"status": "accepted"})
+}
+
+func (a *API) ProcessIngest(ctx context.Context, req models.IngestRequest) error {
 	ts := req.Timestamp
 	if ts.IsZero() {
 		ts = time.Now()
@@ -161,18 +170,17 @@ func (a *API) handleIngest(c *gin.Context) {
 	// Synchronously persist and analyze trend to ensure statelessness.
 	// In a high-traffic production environment, this could be offloaded to a distributed task queue (like RabbitMQ or Redis).
 	// For Phield's stateless requirement with MongoDB, direct processing ensures all instances share the same view.
-	if err := a.storage.Save(c.Request.Context(), entry); err != nil {
+	if err := a.storage.Save(ctx, entry); err != nil {
 		log.Printf("Error persisting entry: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to persist entry"})
-		return
+		return fmt.Errorf("failed to persist entry")
 	}
 
 	// For each PII type, calculate moving average and check for breach
 	for piiType, currentCount := range entry.PIITypes {
-		a.analyzeTrend(c.Request.Context(), entry.SourceID, entry.Organization, entry.Context, piiType, currentCount)
+		a.analyzeTrend(ctx, entry.SourceID, entry.Organization, entry.Context, piiType, currentCount)
 	}
 
-	c.JSON(http.StatusAccepted, gin.H{"status": "accepted"})
+	return nil
 }
 
 func (a *API) analyzeTrend(ctx context.Context, sourceID string, organization string, contextName string, piiType string, currentCount int) {

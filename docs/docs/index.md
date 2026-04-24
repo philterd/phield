@@ -8,7 +8,7 @@ See the [documentation](https://philterd.github.io/phield) for installation, con
 
 ## Capabilities
 
-- Asynchronously receive PII counts via `POST /ingest`.
+- Asynchronously receive PII counts via `POST /ingest` or from a Kafka topic.
 - Optionally, can use MongoDB Time-Series collections for efficient storage and querying.
 - Falls back to ephemeral in-memory storage if MongoDB is not provided.
 - Background worker calculates a moving average or statistical baseline and detects trend changes.

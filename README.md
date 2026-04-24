@@ -1,6 +1,6 @@
 # Phield
 
-Phield is a PII (Personally Identifiable Information) drift and trend monitor. It is designed to receive PII type counts via an API, store them in a MongoDB Time-Series collection (or in-memory if MongoDB is not available), and alert when a count deviates significantly from the established trend (e.g., a sudden spike in Credit Card numbers).
+Phield is a PII (Personally Identifiable Information) drift and trend monitor. It is designed to receive PII type counts via an API or Kafka topic, store them in a MongoDB Time-Series collection (or in-memory if MongoDB is not available), and alert when a count deviates significantly from the established trend (e.g., a sudden spike in Credit Card numbers).
 
 Phield can be used either prior to redaction or after redaction by [Philter](https://www.github.com/philterd/philter). Either way implemented, Phield will detect and alert on any significant drift in PII counts.
 
@@ -10,7 +10,7 @@ See the [documentation](https://philterd.github.io/phield) for installation, con
 
 ## Capabilities
 
-- Asynchronously receive PII counts via `POST /ingest`.
+- Asynchronously receive PII counts via `POST /ingest` or from a Kafka topic.
 - Optionally, can use MongoDB Time-Series collections for efficient storage and querying.
 - Falls back to ephemeral in-memory storage if MongoDB is not provided.
 - Background worker calculates a moving average or statistical baseline and detects trend changes.
