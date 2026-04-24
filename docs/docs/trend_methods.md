@@ -52,3 +52,39 @@ Where:
 
 ### Use Case
 Best for dynamic environments where PII counts vary significantly and a fixed percentage threshold would cause too many false alarms.
+
+---
+
+## Testing with Simulation
+
+You can test both trend detection methods by using the `simulate_data.sh` script. This script allows you to quickly generate a baseline and then trigger a spike to see how Phield responds under different configurations.
+
+### Testing Percentage Delta
+1. Set the method: `export PHIELD_TREND_METHOD=percentage_delta`
+2. Start Phield: `./phield`
+3. Run simulation: `./simulate_data.sh`
+
+### Testing Z-Score
+1. Set the method: `export PHIELD_TREND_METHOD=z_score`
+2. Start Phield: `./phield`
+3. Run simulation: `./simulate_data.sh`
+
+Note: When testing Z-Score, ensure the `ITERATIONS` in the simulation script is higher than the `PHIELD_WARMUP_COUNT` (default 20) to ensure the statistical model has enough data to start alerting.
+
+---
+
+## Fine-tuning with Replay
+
+While simulation is great for initial testing, the **Replay Capability** is designed for fine-tuning Phield against your actual historical data.
+
+By using the `/replay` endpoint, you can "test-drive" different sensitivity settings to see how many alerts they would have generated in the past. This helps you find the "sweet spot" between missing real spikes and being overwhelmed by false positives.
+
+### Replay Workflow
+1.  **Collect Data**: Run Phield in your environment for a few days to build up a history of PII counts.
+2.  **Identify a Period**: Choose a timeframe (e.g., the last 24 hours) where you know a spike occurred, or where you received a false alert.
+3.  **Run Replay**: Call `POST /replay` with your chosen timeframe and a new `test_threshold`.
+4.  **Evaluate**: Review the `virtual_breaches_detected` and `breach_details` in the response.
+5.  **Adjust**: If you still see too many false positives, increase the threshold (for `percentage_delta`) or sensitivity (for `z_score`) and replay again.
+6.  **Apply**: Once satisfied, update your environment variables (`PHIELD_ALERT_THRESHOLD` or `PHIELD_SENSITIVITY`) and restart Phield.
+
+See the [API Usage](api.md#replay-trend-analysis) page for the full replay API specification.

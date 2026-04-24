@@ -75,6 +75,54 @@ Example:
 PHIELD_URL=http://localhost:8080 CONTEXT=billing-app ./simulate_data.sh
 ```
 
+## Replay Trend Analysis
+
+**Endpoint**: `POST /replay`
+
+The replay endpoint allows you to re-run trend detection on historical data using different threshold or sensitivity settings. This is useful for fine-tuning your configuration without affecting live data or notifications.
+
+**Payload**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `start_time` | string | **Required**. ISO-8601 timestamp of the start of the replay window. |
+| `end_time` | string | **Required**. ISO-8601 timestamp of the end of the replay window. |
+| `test_threshold` | float | **Required**. The threshold or sensitivity to test (replaces `PHIELD_ALERT_THRESHOLD` or `PHIELD_SENSITIVITY`). |
+| `pii_types` | array | Optional. A list of PII types to include in the replay. If omitted, all types are processed. |
+
+**Example Request**:
+
+```bash
+curl -k -X POST https://localhost:8443/replay \
+     -H "Content-Type: application/json" \
+     -d '{
+           "start_time": "2026-04-20T00:00:00Z",
+           "end_time": "2026-04-21T00:00:00Z",
+           "test_threshold": 0.5,
+           "pii_types": ["credit-card", "ssn"]
+         }'
+```
+
+**Response**:
+
+```json
+{
+  "total_points_processed": 1440,
+  "virtual_breaches_detected": 2,
+  "breach_details": [
+    {
+      "timestamp": "2026-04-20T14:30:00Z",
+      "pii_type": "credit-card",
+      "context": "default",
+      "organization": "default",
+      "source_id": "app-server-1",
+      "count": 150,
+      "average": 80.5
+    }
+  ]
+}
+```
+
 ## Health Check
 
 **Endpoint**: `GET /health`

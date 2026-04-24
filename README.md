@@ -17,6 +17,7 @@ See the [documentation](https://philterd.github.io/phield) for installation, con
 - Configurable lookback window (default 24 hours) and detection method (Percentage Delta or Adaptive Z-Score).
 - Adaptive Thresholding using Welford's algorithm to learn "normal" volatility and reduce false positives.
 - Alert Cooldown to suppress notification storms for sustained breaches, with "Back to Normal" automatic reset.
+- Replay Capability to test and fine-tune trend settings against historical data.
 - Triggers structured log alerts and optional Slack/PagerDuty notifications when counts exceed a configurable threshold.
 
 ## Simulation

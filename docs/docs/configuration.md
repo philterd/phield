@@ -17,3 +17,6 @@ Phield is configured via environment variables.
 | `PHIELD_SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL | `""` |
 | `PHIELD_PAGERDUTY_ROUTING_KEY` | PagerDuty Integration Routing Key | `""` |
 | `PHIELD_PAGERDUTY_SEVERITY` | PagerDuty Alert Severity | `critical` |
+| `PHIELD_URL` | Simulation: The URL of the Phield ingest API (used by `simulate_data.sh`) | `http://localhost:8080` |
+| `SOURCE_ID` | Simulation: The source ID for the simulated data (used by `simulate_data.sh`) | `simulated-server-01` |
+| `ITERATIONS` | Simulation: The number of baseline data points to send (used by `simulate_data.sh`) | `50` |

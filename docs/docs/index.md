@@ -15,5 +15,15 @@ See the [documentation](https://philterd.github.io/phield) for installation, con
 - Configurable lookback window (default 24 hours) and detection method (Percentage Delta or Adaptive Z-Score).
 - Adaptive Thresholding using Welford's algorithm to learn "normal" volatility and reduce false positives.
 - Alert Cooldown to suppress notification storms for sustained breaches, with "Back to Normal" automatic reset.
+- Replay Capability to test and fine-tune trend settings against historical data.
 - Triggers structured log alerts and optional Slack/PagerDuty notifications when counts exceed a configurable threshold.
+
+## Quick Start with Simulation
+
+To see Phield in action immediately, you can use the included `simulate_data.sh` script. This script sends randomized but realistic PII counts to Phield and then simulates a sudden trend change (spike) to trigger an alert.
+
+1. Start Phield in one terminal: `./phield`
+2. Run the simulation in another: `./simulate_data.sh`
+
+For more details on simulation, see the [Simulation](installation.md#simulating-data) section in the installation guide.
 
