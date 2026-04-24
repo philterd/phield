@@ -36,3 +36,13 @@ If you have a MongoDB instance running locally, you can run Phield directly:
 go build -o phield main.go
 ./phield
 ```
+
+### Simulating Data
+
+Once Phield is running, you can test it by sending simulated data. A script is provided for this purpose:
+
+```bash
+./simulate_data.sh
+```
+
+This script will send a series of baseline data points followed by a sudden spike to demonstrate trend detection and alerting. See the [API Usage](api.md#simulating-data) page for more configuration options.

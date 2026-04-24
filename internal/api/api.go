@@ -259,6 +259,9 @@ func (a *API) analyzeTrend(ctx context.Context, sourceID string, organization st
 		if !lastAlertTime.IsZero() && time.Since(lastAlertTime) < cooldown {
 			log.Printf("[SUPPRESSED] Alert for %s/%s/%s suppressed due to cooldown (last alert: %v)", sourceID, piiType, contextName, lastAlertTime)
 		} else {
+			// Print to standard out in addition to notification channels.
+			fmt.Println(msg)
+
 			log.Print(msg)
 			lastAlertTime = time.Now()
 			if a.notifier != nil {

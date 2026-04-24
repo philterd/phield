@@ -53,6 +53,28 @@ curl -k -X POST https://localhost:8443/ingest \
          }'
 ```
 
+### Simulating Data
+
+To easily test the ingest API and trend detection, you can use the `simulate_data.sh` script provided in the repository.
+
+```bash
+./simulate_data.sh
+```
+
+This script generates realistic PII counts and then simulates a spike to trigger an alert. You can configure the simulation via environment variables:
+
+*   `PHIELD_URL`: The URL of the Phield ingest API (default: `http://localhost:8080`).
+*   `SOURCE_ID`: The source ID for the simulated data (default: `simulated-server-01`).
+*   `ORGANIZATION`: The organization name (default: `demo-org`).
+*   `CONTEXT`: The context name (default: `production`).
+*   `ITERATIONS`: The number of baseline data points to send (default: `50`).
+*   `SLEEP_INTERVAL`: Seconds between each request (default: `1`).
+
+Example:
+```bash
+PHIELD_URL=http://localhost:8080 CONTEXT=billing-app ./simulate_data.sh
+```
+
 ## Health Check
 
 **Endpoint**: `GET /health`

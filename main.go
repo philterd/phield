@@ -71,7 +71,9 @@ func main() {
 	}
 
 	// Setup API
-	r := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+	r.Use(gin.Recovery())
 	a := api.NewAPI(storage, cfg.AlertThreshold, cfg.TrendMethod, cfg.WindowSize, cfg.Sensitivity, cfg.WarmUpCount, cfg.CooldownMinutes, n)
 	a.RegisterRoutes(r)
 
