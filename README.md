@@ -37,7 +37,7 @@ In a second terminal, start the simulated PII counts:
 
 Now, switch back to the first terminal and you can see the alerts being generated as the simulated data trends up.
 
-## Configuration
+### Simulation Configuration
 
 The script supports several environment variables for configuration:
 
