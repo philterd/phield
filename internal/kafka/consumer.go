@@ -22,17 +22,25 @@ import (
 	"log"
 	"strings"
 
-	"github.com/philterd/phield/internal/api"
 	"github.com/philterd/phield/internal/models"
 	"github.com/segmentio/kafka-go"
 )
 
-type Consumer struct {
-	reader *kafka.Reader
-	api    *api.API
+type KafkaReader interface {
+	ReadMessage(ctx context.Context) (kafka.Message, error)
+	Close() error
 }
 
-func NewConsumer(brokers string, topic string, groupID string, api *api.API) *Consumer {
+type IngestProcessor interface {
+	ProcessIngest(ctx context.Context, req models.IngestRequest) error
+}
+
+type Consumer struct {
+	reader KafkaReader
+	api    IngestProcessor
+}
+
+func NewConsumer(brokers string, topic string, groupID string, processor IngestProcessor) *Consumer {
 	log.Printf("Initializing Kafka consumer for topic %s and brokers %s", topic, brokers)
 	return &Consumer{
 		reader: kafka.NewReader(kafka.ReaderConfig{
@@ -42,7 +50,7 @@ func NewConsumer(brokers string, topic string, groupID string, api *api.API) *Co
 			MinBytes: 10e3, // 10KB
 			MaxBytes: 10e6, // 10MB
 		}),
-		api: api,
+		api: processor,
 	}
 }
 
