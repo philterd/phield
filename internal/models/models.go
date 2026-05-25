@@ -77,3 +77,11 @@ type Mute struct {
 	Context      string    `bson:"context" json:"context"`
 	ExpiresAt    time.Time `bson:"expires_at" json:"expires_at"`
 }
+
+type StatsEntry struct {
+	SourceID     string `bson:"source_id" json:"source_id"`
+	Organization string `bson:"organization" json:"organization"`
+	Context      string `bson:"context" json:"context"`
+	PIIType      string `bson:"pii_type" json:"pii_type"`
+	Stats        Stats  `bson:"stats" json:"stats"`
+}

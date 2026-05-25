@@ -269,6 +269,72 @@ func setupTimeSeries(ctx context.Context, db *mongo.Database) error {
 	return nil
 }
 
+func (m *MongoDB) SaveBreach(ctx context.Context, breach models.BreachDetail) error {
+	coll := m.DB.Collection("breaches")
+	_, err := coll.InsertOne(ctx, breach)
+	return err
+}
+
+func (m *MongoDB) GetBreaches(ctx context.Context, startTime time.Time, endTime time.Time) ([]models.BreachDetail, error) {
+	coll := m.DB.Collection("breaches")
+	filter := bson.M{
+		"timestamp": bson.M{
+			"$gte": startTime,
+			"$lte": endTime,
+		},
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "timestamp", Value: -1}})
+
+	cursor, err := coll.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []models.BreachDetail
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (m *MongoDB) GetAllStats(ctx context.Context) ([]models.StatsEntry, error) {
+	coll := m.DB.Collection("pii_stats")
+	cursor, err := coll.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []models.StatsEntry
+	for cursor.Next(ctx) {
+		var doc struct {
+			SourceID     string  `bson:"source_id"`
+			Organization string  `bson:"organization"`
+			Context      string  `bson:"context"`
+			PIIType      string  `bson:"pii_type"`
+			Count        int     `bson:"count"`
+			Mean         float64 `bson:"mean"`
+			M2           float64 `bson:"m2"`
+		}
+		if err := cursor.Decode(&doc); err != nil {
+			return nil, err
+		}
+		results = append(results, models.StatsEntry{
+			SourceID:     doc.SourceID,
+			Organization: doc.Organization,
+			Context:      doc.Context,
+			PIIType:      doc.PIIType,
+			Stats: models.Stats{
+				Count: doc.Count,
+				Mean:  doc.Mean,
+				M2:    doc.M2,
+			},
+		})
+	}
+	return results, nil
+}
+
 func (m *MongoDB) GetEntries(ctx context.Context, startTime time.Time, endTime time.Time) (<-chan models.PIIEntry, <-chan error) {
 	entryChan := make(chan models.PIIEntry)
 	errChan := make(chan error, 1)

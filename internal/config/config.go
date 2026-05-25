@@ -38,6 +38,7 @@ type Config struct {
 	KafkaBrokers        string
 	KafkaTopic          string
 	KafkaGroupID        string
+	DashboardEnabled    bool
 }
 
 func Load() *Config {
@@ -58,6 +59,7 @@ func Load() *Config {
 		KafkaBrokers:        getEnv("PHIELD_KAFKA_BROKERS", ""),
 		KafkaTopic:          getEnv("PHIELD_KAFKA_TOPIC", "phield-pii-counts"),
 		KafkaGroupID:        getEnv("PHIELD_KAFKA_GROUP_ID", "phield"),
+		DashboardEnabled:    getEnvAsBool("PHIELD_DASHBOARD_ENABLED", true),
 	}
 }
 
@@ -79,6 +81,14 @@ func getEnvAsFloat(key string, fallback float64) float64 {
 func getEnvAsInt(key string, fallback int) int {
 	valueStr := getEnv(key, "")
 	if value, err := strconv.Atoi(valueStr); err == nil {
+		return value
+	}
+	return fallback
+}
+
+func getEnvAsBool(key string, fallback bool) bool {
+	valueStr := getEnv(key, "")
+	if value, err := strconv.ParseBool(valueStr); err == nil {
 		return value
 	}
 	return fallback

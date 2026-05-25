@@ -28,6 +28,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/philterd/phield/internal/api"
 	"github.com/philterd/phield/internal/config"
+	"github.com/philterd/phield/internal/dashboard"
 	"github.com/philterd/phield/internal/db"
 	"github.com/philterd/phield/internal/kafka"
 	"github.com/philterd/phield/internal/notifier"
@@ -77,6 +78,12 @@ func main() {
 	r.Use(gin.Recovery())
 	a := api.NewAPI(storage, cfg.AlertThreshold, cfg.TrendMethod, cfg.WindowSize, cfg.Sensitivity, cfg.WarmUpCount, cfg.CooldownMinutes, n)
 	a.RegisterRoutes(r)
+
+	if cfg.DashboardEnabled {
+		dash := dashboard.New(storage)
+		dash.RegisterRoutes(r)
+		log.Println("Dashboard enabled at /dashboard")
+	}
 
 	// Setup Kafka Consumer
 	var kafkaConsumer *kafka.Consumer

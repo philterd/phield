@@ -17,6 +17,7 @@ See the [documentation](https://philterd.github.io/phield) for installation, con
 - Alert Cooldown to suppress notification storms for sustained breaches, with "Back to Normal" automatic reset.
 - Replay Capability to test and fine-tune trend settings against historical data.
 - Triggers structured log alerts and optional Slack/PagerDuty notifications when counts exceed a configurable threshold.
+- Built-in web [dashboard](dashboard.md) for real-time PII flow visualization, alert timeline, entity type breakdowns, and baseline vs. current traffic comparison.
 
 ## Quick Start with Simulation
 

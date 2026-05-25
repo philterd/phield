@@ -267,11 +267,24 @@ func (a *API) analyzeTrend(ctx context.Context, sourceID string, organization st
 		if !lastAlertTime.IsZero() && time.Since(lastAlertTime) < cooldown {
 			log.Printf("[SUPPRESSED] Alert for %s/%s/%s suppressed due to cooldown (last alert: %v)", sourceID, piiType, contextName, lastAlertTime)
 		} else {
-			// Print to standard out in addition to notification channels.
 			fmt.Println(msg)
-
 			log.Print(msg)
 			lastAlertTime = time.Now()
+
+			breach := models.BreachDetail{
+				Timestamp: time.Now(),
+				PIIType:   piiType,
+				Context:   contextName,
+				Org:       organization,
+				SourceID:  sourceID,
+				Count:     currentCount,
+				Average:   tracker.Mean,
+				ZScore:    val,
+			}
+			if err := a.storage.SaveBreach(ctx, breach); err != nil {
+				log.Printf("Error saving breach: %v", err)
+			}
+
 			if a.notifier != nil {
 				if err := a.notifier.Notify(ctx, msg); err != nil {
 					log.Printf("Error sending notification: %v", err)

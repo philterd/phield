@@ -20,6 +20,41 @@ See the [documentation](https://philterd.github.io/phield) for installation, con
 - Replay Capability to test and fine-tune trend settings against historical data.
 - Triggers structured log alerts and optional Slack/PagerDuty notifications when counts exceed a configurable threshold.
 
+## Dashboard
+
+Phield includes a built-in web dashboard for visualizing PII flows and alerts without requiring external tooling like Grafana or Splunk.
+
+Access the dashboard at `http://localhost:8080/dashboard` (or your configured port).
+
+The dashboard provides:
+
+- **Summary metrics** — total data points, alerts, unique sources, PII types, and contexts.
+- **PII entity type breakdown** — doughnut chart showing the distribution of detected PII types.
+- **Volume over time** — line chart of PII counts bucketed by time interval.
+- **Baseline vs. current traffic** — comparison of rolling baseline mean against recent observations with deviation percentages.
+- **PII flows** — source-to-context relationships showing which systems are sending what PII types.
+- **Alert timeline** — chronological list of triggered breach alerts with z-scores and counts.
+
+The time range is configurable (1 hour to 7 days) and the dashboard auto-refreshes every 30 seconds.
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PHIELD_DASHBOARD_ENABLED` | `true` | Set to `false` to disable the dashboard. |
+
+### Dashboard API
+
+The dashboard is backed by JSON API endpoints that can also be consumed programmatically:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/dashboard/summary?hours=24` | Summary statistics for the time window. |
+| `GET /api/dashboard/alerts?hours=24` | Breach/alert events in the time window. |
+| `GET /api/dashboard/entities?hours=24` | PII type totals and time-bucketed timeline. |
+| `GET /api/dashboard/flows?hours=24` | Source-to-context flow data with volume. |
+| `GET /api/dashboard/trends?hours=24` | Baseline mean vs. recent mean per PII type. |
+
 ## Simulation
         
 To see Phield in action, you can use the included `simulate_data.sh` script. This script sends randomized but realistic PII counts to Phield and then simulates a sudden trend change (spike) to trigger an alert.

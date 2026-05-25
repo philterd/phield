@@ -33,4 +33,7 @@ type Storage interface {
 	SaveMute(ctx context.Context, organization string, contextName string, minutes int) error
 	IsMuted(ctx context.Context, organization string, contextName string) (bool, error)
 	GetEntries(ctx context.Context, startTime time.Time, endTime time.Time) (<-chan models.PIIEntry, <-chan error)
+	SaveBreach(ctx context.Context, breach models.BreachDetail) error
+	GetBreaches(ctx context.Context, startTime time.Time, endTime time.Time) ([]models.BreachDetail, error)
+	GetAllStats(ctx context.Context) ([]models.StatsEntry, error)
 }

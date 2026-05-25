@@ -32,6 +32,7 @@ services:
       - PHIELD_SLACK_WEBHOOK_URL=
       - PHIELD_PAGERDUTY_ROUTING_KEY=
       - PHIELD_PAGERDUTY_SEVERITY=critical
+      - PHIELD_DASHBOARD_ENABLED=true
     depends_on:
       mongodb:
         condition: service_healthy

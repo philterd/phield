@@ -26,19 +26,21 @@ import (
 )
 
 type InMemoryStorage struct {
-	mu      sync.RWMutex
-	entries []models.PIIEntry
-	metrics []models.MetricEntry
-	mutes   map[string]time.Time    // key is organization:context
-	stats   map[string]models.Stats // key is organization:context:sourceID:piiType
+	mu       sync.RWMutex
+	entries  []models.PIIEntry
+	metrics  []models.MetricEntry
+	breaches []models.BreachDetail
+	mutes    map[string]time.Time    // key is organization:context
+	stats    map[string]models.Stats // key is organization:context:sourceID:piiType
 }
 
 func NewInMemoryStorage() *InMemoryStorage {
 	return &InMemoryStorage{
-		entries: make([]models.PIIEntry, 0),
-		metrics: make([]models.MetricEntry, 0),
-		mutes:   make(map[string]time.Time),
-		stats:   make(map[string]models.Stats),
+		entries:  make([]models.PIIEntry, 0),
+		metrics:  make([]models.MetricEntry, 0),
+		breaches: make([]models.BreachDetail, 0),
+		mutes:    make(map[string]time.Time),
+		stats:    make(map[string]models.Stats),
 	}
 }
 
@@ -149,6 +151,66 @@ func (s *InMemoryStorage) IsMuted(ctx context.Context, organization string, cont
 		}
 	}
 	return false, nil
+}
+
+func (s *InMemoryStorage) SaveBreach(ctx context.Context, breach models.BreachDetail) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.breaches = append(s.breaches, breach)
+	return nil
+}
+
+func (s *InMemoryStorage) GetBreaches(ctx context.Context, startTime time.Time, endTime time.Time) ([]models.BreachDetail, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var results []models.BreachDetail
+	for _, b := range s.breaches {
+		if (b.Timestamp.After(startTime) || b.Timestamp.Equal(startTime)) &&
+			(b.Timestamp.Before(endTime) || b.Timestamp.Equal(endTime)) {
+			results = append(results, b)
+		}
+	}
+	return results, nil
+}
+
+func (s *InMemoryStorage) GetAllStats(ctx context.Context) ([]models.StatsEntry, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var results []models.StatsEntry
+	for key, stats := range s.stats {
+		parts := splitStatsKey(key)
+		if len(parts) == 4 {
+			results = append(results, models.StatsEntry{
+				Organization: parts[0],
+				Context:      parts[1],
+				SourceID:     parts[2],
+				PIIType:      parts[3],
+				Stats:        stats,
+			})
+		}
+	}
+	return results, nil
+}
+
+func splitStatsKey(key string) []string {
+	var parts []string
+	start := 0
+	for i := 0; i < len(key); i++ {
+		if key[i] == ':' {
+			parts = append(parts, key[start:i])
+			start = i + 1
+			if len(parts) == 3 {
+				parts = append(parts, key[start:])
+				return parts
+			}
+		}
+	}
+	if start < len(key) {
+		parts = append(parts, key[start:])
+	}
+	return parts
 }
 
 func (s *InMemoryStorage) GetEntries(ctx context.Context, startTime time.Time, endTime time.Time) (<-chan models.PIIEntry, <-chan error) {

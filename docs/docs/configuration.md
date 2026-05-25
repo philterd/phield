@@ -20,6 +20,7 @@ Phield is configured via environment variables.
 | `PHIELD_KAFKA_BROKERS` | Comma-separated list of Kafka brokers. If provided, Kafka consumption is enabled. | `""` |
 | `PHIELD_KAFKA_TOPIC` | Kafka topic to consume PII counts from. | `phield-pii-counts` |
 | `PHIELD_KAFKA_GROUP_ID` | Kafka consumer group ID. | `phield` |
+| `PHIELD_DASHBOARD_ENABLED` | Enable the built-in web [dashboard](dashboard.md). | `true` |
 | `PHIELD_URL` | Simulation: The URL of the Phield ingest API (used by `simulate_data.sh`) | `http://localhost:8080` |
 | `SOURCE_ID` | Simulation: The source ID for the simulated data (used by `simulate_data.sh`) | `simulated-server-01` |
 | `ITERATIONS` | Simulation: The number of baseline data points to send (used by `simulate_data.sh`) | `50` |
