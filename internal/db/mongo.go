@@ -35,6 +35,11 @@ type MongoDB struct {
 	DB     *mongo.Database
 }
 
+// Ping reports whether MongoDB is reachable.
+func (m *MongoDB) Ping(ctx context.Context) error {
+	return m.Client.Ping(ctx, nil)
+}
+
 func (m *MongoDB) Save(ctx context.Context, entry models.PIIEntry) error {
 	coll := m.DB.Collection("pii_counts")
 	_, err := coll.InsertOne(ctx, entry)

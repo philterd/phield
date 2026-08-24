@@ -1038,3 +1038,30 @@ func TestMongoMetricsRetention(t *testing.T) {
 		}
 	})
 }
+
+func TestMongoPing(t *testing.T) {
+	m := newTestMongo(t)
+	ctx := context.Background()
+
+	if err := m.Ping(ctx); err != nil {
+		t.Errorf("expected a reachable server, got %v", err)
+	}
+
+	// A connection of its own, so disconnecting it leaves the one the test
+	// cleanup uses alone. A disconnected client is the state /health must
+	// notice.
+	second, err := Connect(testURI(mongoBaseURI, m.DB.Name()), defaultTestRetention)
+	if err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	if err := second.Ping(ctx); err != nil {
+		t.Errorf("expected a reachable server, got %v", err)
+	}
+
+	if err := second.Client.Disconnect(ctx); err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+	if err := second.Ping(ctx); err == nil {
+		t.Error("expected an error after disconnecting")
+	}
+}

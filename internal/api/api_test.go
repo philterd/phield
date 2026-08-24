@@ -20,6 +20,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -446,4 +448,122 @@ func drainEntries(t *testing.T, storage db.Storage) []models.PIIEntry {
 		t.Fatalf("GetEntries: %v", err)
 	}
 	return entries
+}
+
+func TestLimitRequestBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	newRouter := func(maxBytes int64) *gin.Engine {
+		a := NewAPI(db.NewInMemoryStorage(), 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		r := gin.New()
+		r.Use(LimitRequestBody(maxBytes))
+		a.RegisterRoutes(r)
+		return r
+	}
+
+	post := func(r *gin.Engine, body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/ingest", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	// A body with enough PII types to exceed a small limit.
+	large := `{"source_id":"s1","pii_types":{`
+	for i := 0; i < 200; i++ {
+		if i > 0 {
+			large += ","
+		}
+		large += fmt.Sprintf(`"type-%d":%d`, i, i)
+	}
+	large += "}}"
+
+	small := `{"source_id":"s1","pii_types":{"ssn":1}}`
+
+	t.Run("an oversized body is refused", func(t *testing.T) {
+		w := post(newRouter(256), large)
+
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("expected status 413, got %d (%s)", w.Code, w.Body.String())
+		}
+		if !strings.Contains(w.Body.String(), "must not exceed 256 bytes") {
+			t.Errorf("expected the limit in the response, got %s", w.Body.String())
+		}
+	})
+
+	t.Run("a body within the limit is accepted", func(t *testing.T) {
+		if w := post(newRouter(256), small); w.Code != http.StatusAccepted {
+			t.Errorf("expected status 202, got %d (%s)", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("a large body is accepted under a large limit", func(t *testing.T) {
+		if w := post(newRouter(1048576), large); w.Code != http.StatusAccepted {
+			t.Errorf("expected status 202, got %d (%s)", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("zero disables the limit", func(t *testing.T) {
+		if w := post(newRouter(0), large); w.Code != http.StatusAccepted {
+			t.Errorf("expected status 202, got %d (%s)", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("malformed JSON is still a bad request", func(t *testing.T) {
+		if w := post(newRouter(1048576), `{"source_id":`); w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+}
+
+// failingPingStorage reports the storage as unreachable.
+type failingPingStorage struct {
+	db.Storage
+	err error
+}
+
+func (s *failingPingStorage) Ping(ctx context.Context) error {
+	return s.err
+}
+
+func TestHandleHealth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	get := func(storage db.Storage) *httptest.ResponseRecorder {
+		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		r := gin.New()
+		a.RegisterRoutes(r)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/health", nil)
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	// In-memory storage is part of the process, so there is nothing to reach.
+	t.Run("healthy with in-memory storage", func(t *testing.T) {
+		w := get(db.NewInMemoryStorage())
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), `"status":"ok"`) {
+			t.Errorf("unexpected body: %s", w.Body.String())
+		}
+	})
+
+	t.Run("unhealthy when the storage cannot be reached", func(t *testing.T) {
+		w := get(&failingPingStorage{
+			Storage: db.NewInMemoryStorage(),
+			err:     errors.New("no reachable servers"),
+		})
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Fatalf("expected status 503, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), `"storage":"unreachable"`) {
+			t.Errorf("unexpected body: %s", w.Body.String())
+		}
+	})
 }

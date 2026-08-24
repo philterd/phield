@@ -19,6 +19,7 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 )
 
 func TestLoad(t *testing.T) {
@@ -34,6 +35,10 @@ func TestLoad(t *testing.T) {
 	os.Unsetenv("PHIELD_PAGERDUTY_SEVERITY")
 	os.Unsetenv("PHIELD_WINDOW_SIZE")
 	os.Unsetenv("PHIELD_METRICS_RETENTION_DAYS")
+	os.Unsetenv("PHIELD_READ_TIMEOUT_SECONDS")
+	os.Unsetenv("PHIELD_WRITE_TIMEOUT_SECONDS")
+	os.Unsetenv("PHIELD_IDLE_TIMEOUT_SECONDS")
+	os.Unsetenv("PHIELD_MAX_REQUEST_BYTES")
 
 	t.Run("Default values", func(t *testing.T) {
 		cfg := Load()
@@ -58,6 +63,18 @@ func TestLoad(t *testing.T) {
 		if cfg.MetricsRetentionDays != 7 {
 			t.Errorf("expected 7 MetricsRetentionDays, got %d", cfg.MetricsRetentionDays)
 		}
+		if cfg.ReadTimeout != 15*time.Second {
+			t.Errorf("expected a 15s ReadTimeout, got %s", cfg.ReadTimeout)
+		}
+		if cfg.WriteTimeout != 120*time.Second {
+			t.Errorf("expected a 120s WriteTimeout, got %s", cfg.WriteTimeout)
+		}
+		if cfg.IdleTimeout != 60*time.Second {
+			t.Errorf("expected a 60s IdleTimeout, got %s", cfg.IdleTimeout)
+		}
+		if cfg.MaxRequestBytes != 1048576 {
+			t.Errorf("expected 1048576 MaxRequestBytes, got %d", cfg.MaxRequestBytes)
+		}
 	})
 
 	t.Run("Override values", func(t *testing.T) {
@@ -68,9 +85,13 @@ func TestLoad(t *testing.T) {
 		os.Setenv("PHIELD_WINDOW_SIZE", "48")
 		os.Setenv("PHIELD_API_KEY", "s3cret")
 		os.Setenv("PHIELD_METRICS_RETENTION_DAYS", "30")
+		os.Setenv("PHIELD_READ_TIMEOUT_SECONDS", "5")
+		os.Setenv("PHIELD_MAX_REQUEST_BYTES", "2048")
 		defer func() {
 			os.Unsetenv("PHIELD_API_KEY")
 			os.Unsetenv("PHIELD_METRICS_RETENTION_DAYS")
+			os.Unsetenv("PHIELD_READ_TIMEOUT_SECONDS")
+			os.Unsetenv("PHIELD_MAX_REQUEST_BYTES")
 			os.Unsetenv("PHIELD_MONGO_URI")
 			os.Unsetenv("PHIELD_ALERT_THRESHOLD")
 			os.Unsetenv("PHIELD_PORT")
@@ -93,6 +114,12 @@ func TestLoad(t *testing.T) {
 		}
 		if cfg.MetricsRetentionDays != 30 {
 			t.Errorf("expected 30 MetricsRetentionDays, got %d", cfg.MetricsRetentionDays)
+		}
+		if cfg.ReadTimeout != 5*time.Second {
+			t.Errorf("expected a 5s ReadTimeout, got %s", cfg.ReadTimeout)
+		}
+		if cfg.MaxRequestBytes != 2048 {
+			t.Errorf("expected 2048 MaxRequestBytes, got %d", cfg.MaxRequestBytes)
 		}
 		if cfg.PagerDutySeverity != "error" {
 			t.Errorf("expected error PagerDutySeverity, got %s", cfg.PagerDutySeverity)

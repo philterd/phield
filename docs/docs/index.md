@@ -19,6 +19,15 @@ See the [documentation](https://philterd.github.io/phield) for installation, con
 - Triggers structured log alerts and optional Slack/PagerDuty notifications when counts exceed a configurable threshold.
 - Built-in web [dashboard](dashboard.md) for real-time PII flow visualization, alert timeline, entity type breakdowns, and baseline vs. current traffic comparison.
 
+## Quick Start with Docker
+
+```bash
+docker pull philterd/phield
+docker run -p 8443:8443 philterd/phield
+```
+
+Open the dashboard at `https://localhost:8443/dashboard`. The container generates its own certificate on start, so clients need `-k` until you supply one, and without `PHIELD_MONGO_URI` the data is held in memory and lost on restart. See [Installation](installation.md) for pinning a version, persisting to MongoDB, and supplying your own certificate.
+
 ## Quick Start with Simulation
 
 To see Phield in action immediately, you can use the included `simulate_data.sh` script. This script sends randomized but realistic PII counts to Phield and then simulates a sudden trend change (spike) to trigger an alert.

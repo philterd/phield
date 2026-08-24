@@ -23,6 +23,10 @@ Phield is configured via environment variables.
 | `PHIELD_KAFKA_GROUP_ID` | Kafka consumer group ID. | `phield` |
 | `PHIELD_DASHBOARD_ENABLED` | Enable the built-in web [dashboard](dashboard.md). | `true` |
 | `PHIELD_METRICS_RETENTION_DAYS` | Days to keep `/ingest` latency samples in MongoDB. `0` keeps them indefinitely. Applied on start. | `7` |
+| `PHIELD_READ_TIMEOUT_SECONDS` | Time a client has to send a request. `0` is unlimited. | `15` |
+| `PHIELD_WRITE_TIMEOUT_SECONDS` | Time a response has to be written. Raise it if a [replay](api.md#replay-trend-analysis) over a wide window is cut off. `0` is unlimited. | `120` |
+| `PHIELD_IDLE_TIMEOUT_SECONDS` | Time a kept-alive connection may sit between requests. `0` is unlimited. | `60` |
+| `PHIELD_MAX_REQUEST_BYTES` | Largest request body accepted. `0` is unlimited. | `1048576` (1 MB) |
 | `PHIELD_URL` | Simulation: The URL of the Phield ingest API (used by `simulate_data.sh`) | `http://localhost:8080` |
 | `SOURCE_ID` | Simulation: The source ID for the simulated data (used by `simulate_data.sh`) | `simulated-server-01` |
 | `ITERATIONS` | Simulation: The number of baseline data points to send (used by `simulate_data.sh`) | `50` |

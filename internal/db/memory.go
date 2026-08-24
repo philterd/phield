@@ -115,6 +115,12 @@ func (s *InMemoryStorage) GetAverage(ctx context.Context, sourceID string, organ
 
 }
 
+// Ping always succeeds: the data is in this process, so there is nothing to
+// reach and nothing that can be unreachable.
+func (s *InMemoryStorage) Ping(ctx context.Context) error {
+	return nil
+}
+
 func (s *InMemoryStorage) GetStats(ctx context.Context, sourceID string, organization string, contextName string, piiType string) (models.Stats, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

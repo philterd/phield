@@ -211,3 +211,9 @@ func TestInMemorySaveStatsVersioning(t *testing.T) {
 		t.Errorf("expected ErrStatsConflict for an unknown series at version 3, got %v", err)
 	}
 }
+
+func TestInMemoryPing(t *testing.T) {
+	if err := NewInMemoryStorage().Ping(context.Background()); err != nil {
+		t.Errorf("expected in-memory storage to always be reachable, got %v", err)
+	}
+}

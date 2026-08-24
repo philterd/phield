@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Go 1.26+
-- MongoDB 8.0+
+- MongoDB 8.2 (what the Docker Compose file and CI use). Some other 8.x releases refuse to start on Linux kernels 6.19 and newer.
 - Docker and Docker Compose (optional, for containerized deployment)
 
 ## Running with Makefile
@@ -17,13 +17,41 @@ The project includes a `Makefile` for common tasks:
 - `make docker-down`: Stop the services.
 - `make clean`: Remove the built binary.
 
-Images are published for `linux/amd64` and `linux/arm64`.
+## Running with Docker
 
-The binary reports its version:
+Images are published to [Docker Hub](https://hub.docker.com/r/philterd/phield) for `linux/amd64` and `linux/arm64`.
 
 ```bash
-./phield --version
+docker pull philterd/phield
+docker run -p 8443:8443 philterd/phield
 ```
+
+Phield serves HTTPS on port 8443 in the container, using a certificate it generates on start, so clients need `-k` until you supply one of your own:
+
+```bash
+curl -k https://localhost:8443/health
+```
+
+The dashboard is at `https://localhost:8443/dashboard`.
+
+Pin a version rather than `latest` so a deployment does not move underneath you:
+
+```bash
+docker pull philterd/phield:1.0.0
+```
+
+Each release also publishes per-architecture tags (`1.0.0-amd64`, `1.0.0-arm64`). Use the plain tag unless you need a specific architecture.
+
+Without `PHIELD_MONGO_URI`, the container keeps everything in memory and loses it on restart. Point it at MongoDB to persist:
+
+```bash
+docker run -p 8443:8443 \
+  -e PHIELD_MONGO_URI=mongodb://your-mongodb-host:27017/phield \
+  -e PHIELD_API_KEY=your-key \
+  philterd/phield
+```
+
+To supply your own certificate, mount it and set `PHIELD_CERT_FILE` and `PHIELD_KEY_FILE`. An existing certificate is never replaced. See [Configuration](configuration.md).
 
 ## Running with Docker Compose
 
@@ -45,6 +73,12 @@ If you have a MongoDB instance running locally, you can run Phield directly:
 ```bash
 go build -o phield main.go
 ./phield
+```
+
+The binary reports its version:
+
+```bash
+./phield --version
 ```
 
 ### Simulating Data

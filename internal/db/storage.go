@@ -30,6 +30,9 @@ import (
 var ErrStatsConflict = errors.New("stats were modified concurrently")
 
 type Storage interface {
+	// Ping reports whether the storage is reachable. In-memory storage is part
+	// of the process and always reachable, so it never fails.
+	Ping(ctx context.Context) error
 	Save(ctx context.Context, entry models.PIIEntry) error
 	GetAverage(ctx context.Context, sourceID string, organization string, contextName string, piiType string, windowSizeHours int) (float64, error)
 	GetStats(ctx context.Context, sourceID string, organization string, contextName string, piiType string) (models.Stats, error)

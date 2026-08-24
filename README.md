@@ -8,6 +8,15 @@ Phield is part of a suite that includes [Phinder](https://www.github.com/philter
 
 See the [documentation](https://philterd.github.io/phield) for installation, configuration, API usage, and notification channels.
 
+## Quick start
+
+```bash
+docker pull philterd/phield
+docker run -p 8443:8443 philterd/phield
+```
+
+Open the dashboard at `https://localhost:8443/dashboard`. The container generates its own certificate on start, so clients need `-k` until you supply one. Without `PHIELD_MONGO_URI` set, data is held in memory and lost on restart. See [Installation](https://philterd.github.io/phield/installation/).
+
 ## Capabilities
 
 - Asynchronously receive PII counts via `POST /ingest` or from a Kafka topic.
@@ -95,7 +104,7 @@ Example using custom configuration:
 PHIELD_URL=http://localhost:8080 ITERATIONS=100 ./simulate_data.sh
 ```
 
-## Docker image
+## Building the Docker image
 
 `build-image.sh` builds the image for `linux/amd64` and `linux/arm64`. `push-image.sh` publishes it. Both take an optional version, defaulting to `latest`.
 

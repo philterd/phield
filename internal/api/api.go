@@ -58,6 +58,42 @@ func NewAPI(storage db.Storage, alertThreshold float64, trendMethod string, wind
 	}
 }
 
+// LimitRequestBody returns middleware that refuses a request body larger than
+// maxBytes, so an oversized payload is rejected as it arrives rather than being
+// read into memory. A maxBytes of zero or less disables the limit.
+func LimitRequestBody(maxBytes int64) gin.HandlerFunc {
+	if maxBytes <= 0 {
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+
+	return func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		c.Next()
+	}
+}
+
+// bindJSON reads the request body into req. It writes the response and returns
+// false when the body is unreadable, so a handler can simply return.
+func bindJSON(c *gin.Context, req any) bool {
+	err := c.ShouldBindJSON(req)
+	if err == nil {
+		return true
+	}
+
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{
+			"error": fmt.Sprintf("request body must not exceed %d bytes", tooLarge.Limit),
+		})
+		return false
+	}
+
+	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	return false
+}
+
 // RegisterRoutes registers the API endpoints. Any middleware passed in is
 // applied to the endpoints that change what Phield holds, which is how API key
 // authentication is enabled. Health and metrics stay open so probes and scrapes
@@ -112,8 +148,7 @@ func (a *API) handleMetrics(c *gin.Context) {
 
 func (a *API) handleMute(c *gin.Context) {
 	var req models.MuteRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if !bindJSON(c, &req) {
 		return
 	}
 
@@ -141,14 +176,29 @@ func (a *API) handleMute(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "muted", "organization": org, "context": req.Context, "minutes": req.Minutes})
 }
 
+// healthCheckTimeout bounds the storage check so a hung backend cannot hold the
+// health endpoint open.
+const healthCheckTimeout = 2 * time.Second
+
 func (a *API) handleHealth(c *gin.Context) {
+	// Reports unhealthy when the storage cannot be reached, so a load balancer
+	// stops sending an instance counts it cannot persist. With in-memory
+	// storage there is nothing to reach and this always succeeds.
+	ctx, cancel := context.WithTimeout(c.Request.Context(), healthCheckTimeout)
+	defer cancel()
+
+	if err := a.storage.Ping(ctx); err != nil {
+		log.Printf("Health check failed: %v", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unavailable", "storage": "unreachable"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 func (a *API) handleIngest(c *gin.Context) {
 	var req models.IngestRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if !bindJSON(c, &req) {
 		return
 	}
 
@@ -425,8 +475,7 @@ func (a *API) reportTrend(ctx context.Context, outcome trendOutcome) {
 
 func (a *API) handleReplay(c *gin.Context) {
 	var req models.ReplayRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if !bindJSON(c, &req) {
 		return
 	}
 

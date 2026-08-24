@@ -56,6 +56,8 @@ A request is rejected with `400 Bad Request` and a message naming the problem wh
 *   A PII type name is blank, contains a `.`, or starts with a `$`. Counts are stored as document fields and queried by name, which those characters break.
 *   A count is negative.
 
+A body larger than `PHIELD_MAX_REQUEST_BYTES` is rejected with `413 Request Entity Too Large`.
+
 For example:
 
 ```json
@@ -200,6 +202,8 @@ Each breach carries a `z_score` field as well when `PHIELD_TREND_METHOD` is `z_s
 
 **Endpoint**: `GET /health`
 
+Reports `200 OK` when Phield can reach its storage, so a load balancer stops sending an instance counts it cannot persist. When MongoDB is not configured the data is held in this process, so there is nothing to reach and the check always succeeds.
+
 **Example Request**:
 
 ```bash
@@ -211,6 +215,15 @@ curl -k https://localhost:8443/health
 ```json
 {
   "status": "ok"
+}
+```
+
+When the storage cannot be reached, the response is `503 Service Unavailable`:
+
+```json
+{
+  "status": "unavailable",
+  "storage": "unreachable"
 }
 ```
 

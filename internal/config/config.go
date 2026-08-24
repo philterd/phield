@@ -19,6 +19,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 type Config struct {
@@ -43,6 +44,17 @@ type Config struct {
 	// MetricsRetentionDays is how long /ingest latency samples are kept. Zero
 	// keeps them forever.
 	MetricsRetentionDays int
+
+	// ReadTimeout bounds how long a client may take to send a request, and
+	// WriteTimeout how long a response may take. WriteTimeout is the more
+	// generous of the two because a replay over a wide window is slow by
+	// nature. IdleTimeout bounds a kept-alive connection between requests.
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	IdleTimeout  time.Duration
+
+	// MaxRequestBytes bounds the size of a request body.
+	MaxRequestBytes int64
 }
 
 func Load() *Config {
@@ -67,6 +79,12 @@ func Load() *Config {
 		DashboardEnabled:    getEnvAsBool("PHIELD_DASHBOARD_ENABLED", true),
 
 		MetricsRetentionDays: getEnvAsInt("PHIELD_METRICS_RETENTION_DAYS", 7),
+
+		ReadTimeout:  time.Duration(getEnvAsInt("PHIELD_READ_TIMEOUT_SECONDS", 15)) * time.Second,
+		WriteTimeout: time.Duration(getEnvAsInt("PHIELD_WRITE_TIMEOUT_SECONDS", 120)) * time.Second,
+		IdleTimeout:  time.Duration(getEnvAsInt("PHIELD_IDLE_TIMEOUT_SECONDS", 60)) * time.Second,
+
+		MaxRequestBytes: int64(getEnvAsInt("PHIELD_MAX_REQUEST_BYTES", 1048576)),
 	}
 }
 

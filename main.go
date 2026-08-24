@@ -100,6 +100,8 @@ func main() {
 		log.Println("WARNING: No PHIELD_API_KEY set. The API is unauthenticated.")
 	}
 
+	r.Use(api.LimitRequestBody(cfg.MaxRequestBytes))
+
 	a := api.NewAPI(storage, cfg.AlertThreshold, cfg.TrendMethod, cfg.WindowSize, cfg.Sensitivity, cfg.WarmUpCount, cfg.CooldownMinutes, n)
 	a.RegisterRoutes(r, authMiddleware)
 
@@ -119,6 +121,12 @@ func main() {
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
 		Handler: r,
+
+		// Without these a slow client can hold a connection open indefinitely.
+		// ReadHeaderTimeout follows ReadTimeout when it is not set separately.
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		IdleTimeout:  cfg.IdleTimeout,
 	}
 
 	// Graceful shutdown

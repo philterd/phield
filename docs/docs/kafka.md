@@ -42,6 +42,12 @@ When `PHIELD_KAFKA_BROKERS` is set, Phield starts a background consumer that lis
 
 `PHIELD_API_KEY` does not apply to Kafka messages. Use Kafka's own authentication to control who can write to the topic.
 
+## Delivery
+
+Phield commits an offset as it reads each message, so delivery is at most once. A message that fails to parse, fails validation, or cannot be stored is logged and skipped, and the consumer moves on. It is not retried, and Phield will not see it again.
+
+That suits a counts feed, where a missing data point widens the gap in a baseline rather than corrupting it. If a count must not be lost, keep the record on the producing side, or send it to `POST /ingest`, which reports a failure to the caller in the response.
+
 ## Benefits of Kafka Ingestion
 
 - **Scalability**: Kafka handles high throughput and provides buffering.
