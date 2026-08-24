@@ -1,6 +1,8 @@
+VERSION ?= 1.0.0
+
 # Build the phield binary
 build:
-	go build -o phield main.go
+	go build -ldflags "-X main.version=$(VERSION)" -o phield main.go
 
 # Run phield locally (requires MongoDB)
 run: build

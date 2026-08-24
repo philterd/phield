@@ -16,9 +16,15 @@ ARCHES=${ARCHES:-"amd64 arm64"}
 docker buildx inspect phield-builder > /dev/null 2>&1 ||
     docker buildx create --name phield-builder --driver docker-container > /dev/null
 
+# A named version is baked into the binary. "latest" leaves the default in place.
+BUILD_ARGS=()
+if [ "$VERSION" != "latest" ]; then
+    BUILD_ARGS=(--build-arg "VERSION=${VERSION}")
+fi
+
 for arch in $ARCHES; do
     docker buildx build --builder phield-builder \
-        --platform "linux/${arch}" --load \
+        --platform "linux/${arch}" --load "${BUILD_ARGS[@]}" \
         -t "${IMAGE}:${VERSION}-${arch}" .
 done
 

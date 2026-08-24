@@ -19,6 +19,12 @@ The project includes a `Makefile` for common tasks:
 
 Images are published for `linux/amd64` and `linux/arm64`.
 
+The binary reports its version:
+
+```bash
+./phield --version
+```
+
 ## Running with Docker Compose
 
 The easiest way to run Phield along with its MongoDB dependency is using Docker Compose:

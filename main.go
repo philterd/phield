@@ -18,6 +18,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -35,8 +37,22 @@ import (
 	"github.com/philterd/phield/internal/notifier"
 )
 
+// version is the release this binary was built from. Release builds set it at
+// link time, which is what build-image.sh and the Makefile do:
+//
+//	go build -ldflags "-X main.version=1.2.3"
+var version = "1.0.0"
+
 func main() {
-	log.Println("Phield is starting...")
+	showVersion := flag.Bool("version", false, "print the version and exit")
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
+
+	log.Printf("Phield %s is starting...", version)
 	cfg := config.Load()
 
 	var storage db.Storage

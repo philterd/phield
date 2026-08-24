@@ -6,6 +6,9 @@ FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 ARG TARGETOS=linux
 ARG TARGETARCH
 
+# The version the binary reports. build-image.sh passes the release version.
+ARG VERSION=1.0.0
+
 WORKDIR /app
 
 # Copy go mod and sum files
@@ -18,7 +21,8 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o phield main.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -ldflags "-X main.version=${VERSION}" -o phield main.go
 
 # Final stage
 FROM alpine:latest
