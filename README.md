@@ -95,6 +95,23 @@ Example using custom configuration:
 PHIELD_URL=http://localhost:8080 ITERATIONS=100 ./simulate_data.sh
 ```
 
+## Docker image
+
+`build-image.sh` builds the image for `linux/amd64` and `linux/arm64`. `push-image.sh` publishes it. Both take an optional version, defaulting to `latest`.
+
+```bash
+./build-image.sh 1.0.0
+./push-image.sh 1.0.0
+```
+
+`build-image.sh` loads each architecture under its own tag (`1.0.0-amd64`, `1.0.0-arm64`), so both are available locally to run and test. `push-image.sh` pushes those two tags and joins them into the `1.0.0` tag that users pull. It builds nothing, so what is published is what was built and tested.
+
+Set `ARCHES` to build a single architecture:
+
+```bash
+ARCHES=amd64 ./build-image.sh
+```
+
 ## Tests
 
 ```bash

@@ -1,10 +1,29 @@
 #!/bin/bash
 set -e
 
-VERSION=${1:-latest}
+# Builds the Phield Docker image for amd64 and arm64. Pushing it is a separate,
+# manual step: see push-image.sh.
+#
+# Each architecture is built and loaded under its own tag, so both are here to
+# run and test. push-image.sh pushes those tags and joins them into one
+# multi-architecture tag.
 
-docker build -t "philterd/phield:${VERSION}" .
+VERSION=${1:-latest}
+IMAGE=${IMAGE:-philterd/phield}
+ARCHES=${ARCHES:-"amd64 arm64"}
+
+# The default builder cannot cross-build, so use a container builder.
+docker buildx inspect phield-builder > /dev/null 2>&1 ||
+    docker buildx create --name phield-builder --driver docker-container > /dev/null
+
+for arch in $ARCHES; do
+    docker buildx build --builder phield-builder \
+        --platform "linux/${arch}" --load \
+        -t "${IMAGE}:${VERSION}-${arch}" .
+done
 
 echo
-echo "Built philterd/phield:${VERSION}"
-echo "Push it with: docker push philterd/phield:${VERSION}"
+for arch in $ARCHES; do
+    echo "Built ${IMAGE}:${VERSION}-${arch}"
+done
+echo "Push them with: ./push-image.sh ${VERSION}"

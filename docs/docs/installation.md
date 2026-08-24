@@ -17,6 +17,8 @@ The project includes a `Makefile` for common tasks:
 - `make docker-down`: Stop the services.
 - `make clean`: Remove the built binary.
 
+Images are published for `linux/amd64` and `linux/arm64`.
+
 ## Running with Docker Compose
 
 The easiest way to run Phield along with its MongoDB dependency is using Docker Compose:

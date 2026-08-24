@@ -37,3 +37,68 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+
+  vulncheck:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.26'
+        cache: true
+
+    # Reports a vulnerability only when the code reaches it, so an advisory in a
+    # dependency path Phield never calls does not block a pull request.
+    - name: Check for vulnerabilities
+      run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  # Builds the image so a broken Dockerfile fails a pull request. Publishing is
+  # deliberately not done here: images are pushed by hand with push-image.sh.
+  docker:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # The final stage runs apk on the target platform, which needs emulation for
+    # arm64. The Go build itself cross-compiles and does not.
+    - uses: docker/setup-qemu-action@v3
+
+    - uses: docker/setup-buildx-action@v3
+
+    - name: Build image for every published platform
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: false
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    # A multi-platform image cannot be loaded, so load the runner's own platform
+    # from the cache to test with.
+    - name: Load the amd64 image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        platforms: linux/amd64
+        push: false
+        load: true
+        tags: philterd/phield:latest
+        cache-from: type=gha
+
+    - name: Smoke test the image
+      run: |
+        docker run -d --rm -p 8443:8443 --name phield philterd/phield:latest
+
+        for i in $(seq 1 30); do
+          if curl -sk https://localhost:8443/health > /dev/null; then break; fi
+          sleep 1
+        done
+
+        PHIELD_URL=https://localhost:8443 ./smoke-test.sh
+        docker stop phield

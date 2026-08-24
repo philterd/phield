@@ -1,5 +1,10 @@
-# Build stage
-FROM golang:1.26-alpine AS builder
+# Build stage. Pinned to the platform doing the building so the Go compiler runs
+# natively and cross-compiles for the target, rather than running under emulation.
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
+
+# Supplied by buildx. They default to the build platform for a plain docker build.
+ARG TARGETOS=linux
+ARG TARGETARCH
 
 WORKDIR /app
 
@@ -13,7 +18,7 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o phield main.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o phield main.go
 
 # Final stage
 FROM alpine:latest

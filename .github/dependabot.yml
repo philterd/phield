@@ -1,0 +1,32 @@
+version: 2
+
+updates:
+  # Go modules. A week's updates arrive as one pull request rather than several.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - go
+    open-pull-requests-limit: 5
+    groups:
+      go-modules:
+        patterns:
+          - "*"
+
+  # Base images in the Dockerfile.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+
+  # Actions used by the workflows.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
