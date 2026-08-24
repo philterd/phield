@@ -10,7 +10,11 @@ The dashboard is available at:
 http://localhost:8080/dashboard
 ```
 
-Replace the host and port with your configured values (e.g., `https://localhost:8443/dashboard` when using TLS in Docker).
+Replace the host and port with your configured values (e.g., `https://localhost:8443/dashboard` when using TLS in Docker). A request to the root (`http://localhost:8080/`) redirects to the dashboard.
+
+When Phield runs without MongoDB, the dashboard shows a banner saying that counts, baselines, and alerts are held in memory and are lost on restart. Set `PHIELD_MONGO_URI` to store them. See [Configuration](configuration.md).
+
+The dashboard is not covered by `PHIELD_API_KEY`. That key keeps bad data out of Phield, and the dashboard only reads aggregate counts, which contain no PII. Restrict access at the network level, or set `PHIELD_DASHBOARD_ENABLED=false`, if the dashboard should not be reachable. See [Authentication](api.md#authentication).
 
 ## Features
 
@@ -71,6 +75,8 @@ The dashboard auto-refreshes every 30 seconds.
 The dashboard UI is backed by JSON API endpoints that can be consumed programmatically for custom integrations or external dashboards.
 
 All endpoints accept an optional `hours` query parameter (default: `24`, max: `168`).
+
+These endpoints are not covered by `PHIELD_API_KEY`. See [Authentication](api.md#authentication).
 
 ### GET /api/dashboard/summary
 

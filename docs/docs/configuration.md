@@ -14,6 +14,7 @@ Phield is configured via environment variables.
 | `PHIELD_PORT` | Port for the REST API | `8080` (or `8443` in Docker) |
 | `PHIELD_CERT_FILE` | Path to SSL certificate file | `""` |
 | `PHIELD_KEY_FILE` | Path to SSL key file | `""` |
+| `PHIELD_API_KEY` | API key required as a bearer token on `/ingest`, `/mute`, and `/replay`. Does not apply to `/health`, `/metrics`, or the dashboard. If not set, the API is unauthenticated. See [Authentication](api.md#authentication). | `""` |
 | `PHIELD_SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL | `""` |
 | `PHIELD_PAGERDUTY_ROUTING_KEY` | PagerDuty Integration Routing Key | `""` |
 | `PHIELD_PAGERDUTY_SEVERITY` | PagerDuty Alert Severity | `critical` |
@@ -21,6 +22,7 @@ Phield is configured via environment variables.
 | `PHIELD_KAFKA_TOPIC` | Kafka topic to consume PII counts from. | `phield-pii-counts` |
 | `PHIELD_KAFKA_GROUP_ID` | Kafka consumer group ID. | `phield` |
 | `PHIELD_DASHBOARD_ENABLED` | Enable the built-in web [dashboard](dashboard.md). | `true` |
+| `PHIELD_METRICS_RETENTION_DAYS` | Days to keep `/ingest` latency samples in MongoDB. `0` keeps them indefinitely. Applied on start. | `7` |
 | `PHIELD_URL` | Simulation: The URL of the Phield ingest API (used by `simulate_data.sh`) | `http://localhost:8080` |
 | `SOURCE_ID` | Simulation: The source ID for the simulated data (used by `simulate_data.sh`) | `simulated-server-01` |
 | `ITERATIONS` | Simulation: The number of baseline data points to send (used by `simulate_data.sh`) | `50` |

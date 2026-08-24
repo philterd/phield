@@ -18,15 +18,24 @@ package db
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/philterd/phield/internal/models"
 )
 
+// ErrStatsConflict is returned by SaveStats when the stored stats have been
+// updated since they were read, which happens when two ingests for the same
+// series overlap. The caller should read the stats again and redo its work.
+var ErrStatsConflict = errors.New("stats were modified concurrently")
+
 type Storage interface {
 	Save(ctx context.Context, entry models.PIIEntry) error
 	GetAverage(ctx context.Context, sourceID string, organization string, contextName string, piiType string, windowSizeHours int) (float64, error)
 	GetStats(ctx context.Context, sourceID string, organization string, contextName string, piiType string) (models.Stats, error)
+	// SaveStats stores stats for a series. It succeeds only if the stored
+	// version still matches stats.Version, and returns ErrStatsConflict
+	// otherwise, so a read-modify-write cycle cannot silently lose an update.
 	SaveStats(ctx context.Context, sourceID string, organization string, contextName string, piiType string, stats models.Stats) error
 	SaveMetric(ctx context.Context, latency time.Duration) error
 	GetMetrics(ctx context.Context, windowSizeHours int) (int, float64, error) // count, avg latency in seconds

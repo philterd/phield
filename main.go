@@ -27,6 +27,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/philterd/phield/internal/api"
+	"github.com/philterd/phield/internal/auth"
 	"github.com/philterd/phield/internal/config"
 	"github.com/philterd/phield/internal/dashboard"
 	"github.com/philterd/phield/internal/db"
@@ -42,7 +43,7 @@ func main() {
 
 	if cfg.MongoURI != "" {
 		log.Printf("Connecting to MongoDB at %s...", cfg.MongoURI)
-		mongoDB, err := db.Connect(cfg.MongoURI)
+		mongoDB, err := db.Connect(cfg.MongoURI, time.Duration(cfg.MetricsRetentionDays)*24*time.Hour)
 		if err != nil {
 			log.Fatalf("Failed to connect to MongoDB: %v", err)
 		}
@@ -76,11 +77,18 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
+	authMiddleware := auth.BearerToken(cfg.APIKey)
+	if cfg.APIKey != "" {
+		log.Println("API key authentication is enabled")
+	} else {
+		log.Println("WARNING: No PHIELD_API_KEY set. The API is unauthenticated.")
+	}
+
 	a := api.NewAPI(storage, cfg.AlertThreshold, cfg.TrendMethod, cfg.WindowSize, cfg.Sensitivity, cfg.WarmUpCount, cfg.CooldownMinutes, n)
-	a.RegisterRoutes(r)
+	a.RegisterRoutes(r, authMiddleware)
 
 	if cfg.DashboardEnabled {
-		dash := dashboard.New(storage)
+		dash := dashboard.New(storage, cfg.MongoURI == "")
 		dash.RegisterRoutes(r)
 		log.Println("Dashboard enabled at /dashboard")
 	}

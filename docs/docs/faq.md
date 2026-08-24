@@ -23,10 +23,13 @@ See the [API](api.md) and [Kafka Ingestion](kafka.md) pages for more details.
 ### Does Phield store my actual PII data?
 **No.** Phield only receives and stores the *counts* of PII types (e.g., "we found 50 credit card numbers in this source"). It never sees or stores the actual PII values themselves.
 
+### Is the Phield API authenticated?
+Set `PHIELD_API_KEY` to require an API key, sent as a bearer token, on `/ingest`, `/mute`, and `/replay`. If it is not set, Phield accepts all requests and access should be restricted at the network level. The key exists to keep bad data out, so `/health`, `/metrics`, and the dashboard are not covered by it: they read aggregate counts, which contain no PII. See [Authentication](api.md#authentication).
+
 ### Where is the data stored?
 Phield can store data in:
 *   **MongoDB**: Using Time-Series collections for efficient, long-term storage.
-*   **In-Memory**: If MongoDB is not configured, Phield uses ephemeral in-memory storage (data will be lost on restart).
+*   **In-Memory**: If MongoDB is not configured, Phield uses ephemeral in-memory storage (data will be lost on restart). Phield logs this at startup and the [dashboard](dashboard.md) shows a banner while it is in effect.
 
 ### What trend detection methods are available?
 Phield supports two main methods:

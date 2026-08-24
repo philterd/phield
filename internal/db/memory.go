@@ -129,6 +129,17 @@ func (s *InMemoryStorage) SaveStats(ctx context.Context, sourceID string, organi
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key := organization + ":" + contextName + ":" + sourceID + ":" + piiType
+
+	// The write is rejected unless it was computed from what is stored now.
+	current, exists := s.stats[key]
+	if exists && current.Version != stats.Version {
+		return ErrStatsConflict
+	}
+	if !exists && stats.Version != 0 {
+		return ErrStatsConflict
+	}
+
+	stats.Version++
 	s.stats[key] = stats
 	return nil
 }

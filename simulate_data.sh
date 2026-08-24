@@ -8,6 +8,12 @@ CONTEXT=${CONTEXT:-"context1"}
 ITERATIONS=${ITERATIONS:-50}
 SLEEP_INTERVAL=${SLEEP_INTERVAL:-1}
 
+# Sent only when the instance requires an API key.
+AUTH_ARGS=()
+if [ -n "$PHIELD_API_KEY" ]; then
+    AUTH_ARGS=(-H "Authorization: Bearer $PHIELD_API_KEY")
+fi
+
 echo "Starting PII data simulation for Phield..."
 echo "Target URL: $PHIELD_URL"
 echo "Source ID: $SOURCE_ID"
@@ -39,14 +45,18 @@ send_data() {
 EOF
 )
 
-    curl -s -X POST "$PHIELD_URL/ingest" \
+    # Check the HTTP status, not curl's exit code: a rejected request (for
+    # example, a missing or wrong API key) still exits 0.
+    local status
+    status=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$PHIELD_URL/ingest" \
          -H "Content-Type: application/json" \
-         -d "$payload" > /dev/null
+         "${AUTH_ARGS[@]}" \
+         -d "$payload")
 
-    if [ $? -eq 0 ]; then
+    if [ "$status" = "202" ]; then
         echo "[$(date +'%H:%M:%S')] Sent: CC=$cc, Email=$email, SSN=$ssn, Name=$name"
     else
-        echo "[$(date +'%H:%M:%S')] Failed to send data to $PHIELD_URL"
+        echo "[$(date +'%H:%M:%S')] Failed to send data to $PHIELD_URL (HTTP $status)"
     fi
 }
 

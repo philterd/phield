@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/philterd/phield/internal/auth"
 	"github.com/philterd/phield/internal/db"
 	"github.com/philterd/phield/internal/models"
 )
@@ -263,4 +264,186 @@ func TestHandleIngest(t *testing.T) {
 			t.Errorf("expected 1 virtual breach, got %d", resp.VirtualBreachesDetected)
 		}
 	})
+}
+
+func TestRegisterRoutesAppliesMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	a := NewAPI(db.NewInMemoryStorage(), 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+	r := gin.New()
+	a.RegisterRoutes(r, auth.BearerToken("s3cret"))
+
+	do := func(method, path, authHeader string) int {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(method, path, strings.NewReader("{}"))
+		req.Header.Set("Content-Type", "application/json")
+		if authHeader != "" {
+			req.Header.Set("Authorization", authHeader)
+		}
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	// Endpoints that change what Phield holds need the key.
+	protected := []struct {
+		method string
+		path   string
+	}{
+		{"POST", "/ingest"},
+		{"POST", "/mute"},
+		{"POST", "/replay"},
+	}
+
+	for _, route := range protected {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			if code := do(route.method, route.path, ""); code != http.StatusUnauthorized {
+				t.Errorf("without a key: expected 401, got %d", code)
+			}
+			if code := do(route.method, route.path, "Bearer s3cret"); code == http.StatusUnauthorized {
+				t.Error("with a key: expected the request to be authenticated, got 401")
+			}
+		})
+	}
+
+	// Probes and scrapes need no credential.
+	for _, path := range []string{"/health", "/metrics"} {
+		t.Run("GET "+path, func(t *testing.T) {
+			if code := do("GET", path, ""); code != http.StatusOK {
+				t.Errorf("without a key: expected 200, got %d", code)
+			}
+		})
+	}
+}
+
+func TestHandleIngestValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name     string
+		body     string
+		wantCode int
+		wantErr  string
+	}{
+		{
+			name:     "valid request",
+			body:     `{"source_id":"source-1","pii_types":{"ssn":3}}`,
+			wantCode: http.StatusAccepted,
+		},
+		{
+			name:     "malformed JSON",
+			body:     `{"source_id":`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "wrong type for pii_types",
+			body:     `{"source_id":"source-1","pii_types":"ssn"}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "non-integer count",
+			body:     `{"source_id":"source-1","pii_types":{"ssn":"three"}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "empty body",
+			body:     `{}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  "source_id is required",
+		},
+		{
+			name:     "missing source_id",
+			body:     `{"pii_types":{"ssn":3}}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  "source_id is required",
+		},
+		{
+			name:     "missing pii_types",
+			body:     `{"source_id":"source-1"}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  "pii_types is required",
+		},
+		{
+			name:     "empty pii_types",
+			body:     `{"source_id":"source-1","pii_types":{}}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  "pii_types is required",
+		},
+		{
+			name:     "empty PII type name",
+			body:     `{"source_id":"source-1","pii_types":{"":3}}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  "empty PII type name",
+		},
+		{
+			name:     "PII type name containing a dot",
+			body:     `{"source_id":"source-1","pii_types":{"credit.card":3}}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  "must not contain",
+		},
+		{
+			name:     "negative count",
+			body:     `{"source_id":"source-1","pii_types":{"ssn":-1}}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  "must not be negative",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			storage := db.NewInMemoryStorage()
+			a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+			r := gin.New()
+			a.RegisterRoutes(r)
+
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("POST", "/ingest", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			r.ServeHTTP(w, req)
+
+			if w.Code != tt.wantCode {
+				t.Fatalf("expected status %d, got %d (%s)", tt.wantCode, w.Code, w.Body.String())
+			}
+
+			if tt.wantErr != "" && !strings.Contains(w.Body.String(), tt.wantErr) {
+				t.Errorf("expected the response to mention %q, got %s", tt.wantErr, w.Body.String())
+			}
+
+			// A rejected request must not reach storage.
+			if tt.wantCode == http.StatusBadRequest {
+				entries := drainEntries(t, storage)
+				if len(entries) != 0 {
+					t.Errorf("expected nothing to be stored, got %d entries", len(entries))
+				}
+			}
+		})
+	}
+}
+
+func TestProcessIngestValidatesForKafka(t *testing.T) {
+	storage := db.NewInMemoryStorage()
+	a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+
+	// The Kafka consumer calls ProcessIngest directly, bypassing the handler.
+	err := a.ProcessIngest(context.Background(), models.IngestRequest{PIITypes: map[string]int{"ssn": 3}})
+	if err == nil {
+		t.Fatal("expected an error for a request without a source_id")
+	}
+
+	if entries := drainEntries(t, storage); len(entries) != 0 {
+		t.Errorf("expected nothing to be stored, got %d entries", len(entries))
+	}
+}
+
+func drainEntries(t *testing.T, storage db.Storage) []models.PIIEntry {
+	t.Helper()
+
+	entryChan, errChan := storage.GetEntries(context.Background(), time.Now().Add(-24*time.Hour), time.Now().Add(time.Hour))
+
+	var entries []models.PIIEntry
+	for entry := range entryChan {
+		entries = append(entries, entry)
+	}
+	if err := <-errChan; err != nil {
+		t.Fatalf("GetEntries: %v", err)
+	}
+	return entries
 }

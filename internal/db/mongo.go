@@ -18,6 +18,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -183,19 +184,47 @@ func (m *MongoDB) SaveStats(ctx context.Context, sourceID string, organization s
 		"context":      contextName,
 		"pii_type":     piiType,
 	}
+
+	if stats.Version == 0 {
+		// Stats written before versioning carry no version field, which an
+		// equality filter on 0 would not match. $in with nil matches both.
+		filter["version"] = bson.M{"$in": bson.A{0, nil}}
+	} else {
+		filter["version"] = stats.Version
+	}
+
 	update := bson.M{"$set": bson.M{
 		"count":              stats.Count,
 		"mean":               stats.Mean,
 		"m2":                 stats.M2,
 		"last_alert_time":    stats.LastAlertTime,
 		"consecutive_normal": stats.ConsecutiveNormal,
+		"version":            stats.Version + 1,
 	}}
-	opts := options.UpdateOne().SetUpsert(true)
-	_, err := coll.UpdateOne(ctx, filter, update, opts)
-	return err
+
+	// Only the first write of a series may insert. Later writes must match an
+	// existing version, and the unique index on the key fields turns two
+	// concurrent first writes into a duplicate key error, which is the same
+	// conflict as a stale version.
+	opts := options.UpdateOne().SetUpsert(stats.Version == 0)
+
+	res, err := coll.UpdateOne(ctx, filter, update, opts)
+	if mongo.IsDuplicateKeyError(err) {
+		return ErrStatsConflict
+	}
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 && res.UpsertedCount == 0 {
+		return ErrStatsConflict
+	}
+
+	return nil
 }
 
-func Connect(uri string) (*MongoDB, error) {
+// Connect opens a connection and prepares the collections. metricsRetention is
+// how long /ingest latency samples are kept; zero keeps them forever.
+func Connect(uri string, metricsRetention time.Duration) (*MongoDB, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -217,6 +246,15 @@ func Connect(uri string) (*MongoDB, error) {
 	err = setupTimeSeries(ctx, db)
 	if err != nil {
 		return nil, err
+	}
+
+	if err := setupIndexes(ctx, db, metricsRetention); err != nil {
+		// Phield still runs without them, but queries fall back to collection
+		// scans, and without the unique indexes two writers creating the same
+		// series or mute at once can produce a duplicate document. A unique
+		// index also fails to build if duplicates are already there.
+		log.Printf("WARNING: could not create every index: %v", err)
+		log.Printf("WARNING: check for duplicate pii_stats or mutes documents, remove them, and restart")
 	}
 
 	return &MongoDB{
@@ -267,6 +305,127 @@ func setupTimeSeries(ctx context.Context, db *mongo.Database) error {
 	}
 
 	return nil
+}
+
+// setupIndexes creates the indexes the queries above depend on. Creating an
+// index that already exists is a no-op, so this runs on every start and needs no
+// separate migration step. On a collection that is already large, the build
+// costs time and I/O once.
+//
+// pii_counts needs nothing here: a time-series collection is indexed on its time
+// and metadata fields when it is created.
+func setupIndexes(ctx context.Context, db *mongo.Database, metricsRetention time.Duration) error {
+	// GetMetrics only ever reads a recent window, but the collection gains a
+	// document per ingest request, so the same index expires old samples.
+	metricsIndex := options.Index().SetName("metric_timestamp")
+	if metricsRetention > 0 {
+		metricsIndex = metricsIndex.SetExpireAfterSeconds(int32(metricsRetention.Seconds()))
+	}
+
+	indexes := []struct {
+		collection string
+		name       string
+		model      mongo.IndexModel
+	}{
+		{
+			// One stats document per series. This is what makes the versioned
+			// write in SaveStats safe against two writers creating the same
+			// series at once, and it is the index GetStats and SaveStats look
+			// the series up by.
+			collection: "pii_stats",
+			name:       "series_key",
+			model: mongo.IndexModel{
+				Keys: bson.D{
+					{Key: "source_id", Value: 1},
+					{Key: "organization", Value: 1},
+					{Key: "context", Value: 1},
+					{Key: "pii_type", Value: 1},
+				},
+				Options: options.Index().SetName("series_key").SetUnique(true),
+			},
+		},
+		{
+			// IsMuted runs on every PII type of every ingest, and SaveMute
+			// upserts against the same key.
+			collection: "mutes",
+			name:       "mute_key",
+			model: mongo.IndexModel{
+				Keys: bson.D{
+					{Key: "organization", Value: 1},
+					{Key: "context", Value: 1},
+				},
+				Options: options.Index().SetName("mute_key").SetUnique(true),
+			},
+		},
+		{
+			// IsMuted already ignores an expired mute. This clears them out so
+			// the collection does not grow without limit.
+			collection: "mutes",
+			name:       "mute_expiry",
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "expires_at", Value: 1}},
+				Options: options.Index().SetName("mute_expiry").SetExpireAfterSeconds(0),
+			},
+		},
+		{
+			// GetBreaches filters on a time range and sorts by time. Without
+			// this it sorts in memory, which MongoDB gives up on once the sort
+			// passes its memory limit.
+			collection: "breaches",
+			name:       "breach_timestamp",
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "timestamp", Value: -1}},
+				Options: options.Index().SetName("breach_timestamp"),
+			},
+		},
+		{
+			collection: "metrics",
+			name:       "metric_timestamp",
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "timestamp", Value: -1}},
+				Options: metricsIndex,
+			},
+		},
+	}
+
+	var errs []error
+	for _, index := range indexes {
+		if err := createIndex(ctx, db.Collection(index.collection), index.name, index.model); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", index.collection, err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+// MongoDB error codes for an index that already exists under the same name but
+// with different options or a different key.
+const (
+	indexOptionsConflict  = 85
+	indexKeySpecsConflict = 86
+)
+
+// createIndex creates an index, replacing one that exists under the same name
+// with different settings. That happens when PHIELD_METRICS_RETENTION_DAYS
+// changes: MongoDB will not amend an index in place, so it is rebuilt, which
+// costs time and I/O once on a collection that is already large.
+func createIndex(ctx context.Context, coll *mongo.Collection, name string, model mongo.IndexModel) error {
+	_, err := coll.Indexes().CreateOne(ctx, model)
+	if err == nil {
+		return nil
+	}
+
+	var serverErr mongo.ServerError
+	if !errors.As(err, &serverErr) || !(serverErr.HasErrorCode(indexOptionsConflict) || serverErr.HasErrorCode(indexKeySpecsConflict)) {
+		return err
+	}
+
+	if err := coll.Indexes().DropOne(ctx, name); err != nil {
+		return fmt.Errorf("replacing index %s: %w", name, err)
+	}
+
+	_, err = coll.Indexes().CreateOne(ctx, model)
+	return err
 }
 
 func (m *MongoDB) SaveBreach(ctx context.Context, breach models.BreachDetail) error {

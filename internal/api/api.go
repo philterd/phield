@@ -18,9 +18,13 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"hash/fnv"
 	"log"
+	"math/rand/v2"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -54,13 +58,21 @@ func NewAPI(storage db.Storage, alertThreshold float64, trendMethod string, wind
 	}
 }
 
-func (a *API) RegisterRoutes(r *gin.Engine) {
+// RegisterRoutes registers the API endpoints. Any middleware passed in is
+// applied to the endpoints that change what Phield holds, which is how API key
+// authentication is enabled. Health and metrics stay open so probes and scrapes
+// need no credential: the key exists to keep bad data out, and neither endpoint
+// exposes PII.
+func (a *API) RegisterRoutes(r *gin.Engine, middleware ...gin.HandlerFunc) {
 	r.Use(a.metricsMiddleware())
-	r.POST("/ingest", a.handleIngest)
-	r.POST("/mute", a.handleMute)
-	r.POST("/replay", a.handleReplay)
+
 	r.GET("/health", a.handleHealth)
 	r.GET("/metrics", a.handleMetrics)
+
+	g := r.Group("/", middleware...)
+	g.POST("/ingest", a.handleIngest)
+	g.POST("/mute", a.handleMute)
+	g.POST("/replay", a.handleReplay)
 }
 
 func (a *API) metricsMiddleware() gin.HandlerFunc {
@@ -140,6 +152,11 @@ func (a *API) handleIngest(c *gin.Context) {
 		return
 	}
 
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	if err := a.ProcessIngest(c.Request.Context(), req); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -148,7 +165,14 @@ func (a *API) handleIngest(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "accepted"})
 }
 
+// ProcessIngest validates and stores a set of counts, then analyzes the trend
+// for each PII type. It is called for both API requests and Kafka messages, so
+// it validates the request rather than relying on the caller to have done so.
 func (a *API) ProcessIngest(ctx context.Context, req models.IngestRequest) error {
+	if err := req.Validate(); err != nil {
+		return err
+	}
+
 	ts := req.Timestamp
 	if ts.IsZero() {
 		ts = time.Now()
@@ -183,20 +207,95 @@ func (a *API) ProcessIngest(ctx context.Context, req models.IngestRequest) error
 	return nil
 }
 
+// maxStatsAttempts bounds how many times a trend analysis is redone when a
+// concurrent ingest for the same series updates the stats first.
+const maxStatsAttempts = 8
+
+// seriesLockCount is the number of locks that serialize same-series work within
+// this process. Series are spread across them by hash, so the memory cost is
+// fixed no matter how many series a deployment has.
+const seriesLockCount = 256
+
+var seriesLocks [seriesLockCount]sync.Mutex
+
+// lockSeries serializes the read-modify-write of one series inside this process,
+// leaving the versioned write in storage to handle the other instances. Without
+// it, every goroutine holding the same series would collide on the write and
+// burn through its retries.
+func lockSeries(sourceID string, organization string, contextName string, piiType string) func() {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(sourceID + "\x00" + organization + "\x00" + contextName + "\x00" + piiType))
+
+	lock := &seriesLocks[h.Sum32()%seriesLockCount]
+	lock.Lock()
+	return lock.Unlock
+}
+
+// trendOutcome is the result of one pass over a series: the stats to store and
+// whatever should be reported once they are stored.
+type trendOutcome struct {
+	stats      models.Stats
+	message    string
+	breached   bool
+	suppressed bool
+	breach     models.BreachDetail
+}
+
 func (a *API) analyzeTrend(ctx context.Context, sourceID string, organization string, contextName string, piiType string, currentCount int) {
-	// Check if context is muted
 	muted, err := a.storage.IsMuted(ctx, organization, contextName)
 	if err != nil {
+		// The mute state is unknown, so carry on as if not muted: a spurious
+		// alert is a better failure than a missed one.
 		log.Printf("Error checking mute status: %v", err)
 	}
 	if muted {
 		return
 	}
 
-	// Get current stats
+	unlock := lockSeries(sourceID, organization, contextName, piiType)
+	defer unlock()
+
+	// Stats are read, updated, and written back, so an ingest for the same
+	// series on another instance can land in between. SaveStats refuses a write
+	// computed from stats that have since moved on, and the analysis is redone
+	// against the current ones. Reporting waits until the write lands so a retry
+	// cannot alert twice.
+	for attempt := 1; attempt <= maxStatsAttempts; attempt++ {
+		outcome, err := a.evaluateTrend(ctx, sourceID, organization, contextName, piiType, currentCount)
+		if err != nil {
+			// Analyzing against a baseline we could not read would replace it
+			// with one built from this single count, so stop here instead.
+			log.Printf("Error analyzing %s/%s/%s/%s: %v", sourceID, organization, contextName, piiType, err)
+			return
+		}
+
+		err = a.storage.SaveStats(ctx, sourceID, organization, contextName, piiType, outcome.stats)
+		if errors.Is(err, db.ErrStatsConflict) {
+			// Back off a random, growing moment so instances that collided do
+			// not line up and collide again, and so a series under sustained
+			// write pressure from several instances still converges.
+			time.Sleep(time.Duration(attempt) * time.Duration(rand.IntN(10)+5) * time.Millisecond)
+			continue
+		}
+		if err != nil {
+			log.Printf("Error saving stats: %v", err)
+			return
+		}
+
+		a.reportTrend(ctx, outcome)
+		return
+	}
+
+	log.Printf("Gave up updating stats for %s/%s/%s/%s after %d concurrent updates",
+		sourceID, organization, contextName, piiType, maxStatsAttempts)
+}
+
+// evaluateTrend reads the current stats for a series and works out what this
+// count does to them. It changes nothing.
+func (a *API) evaluateTrend(ctx context.Context, sourceID string, organization string, contextName string, piiType string, currentCount int) (trendOutcome, error) {
 	stats, err := a.storage.GetStats(ctx, sourceID, organization, contextName, piiType)
 	if err != nil {
-		log.Printf("Error getting stats: %v", err)
+		return trendOutcome{}, fmt.Errorf("reading stats: %w", err)
 	}
 
 	tracker := trend.StatTracker{
@@ -223,6 +322,8 @@ func (a *API) analyzeTrend(ctx context.Context, sourceID string, organization st
 	} else {
 		avg, err := a.storage.GetAverage(ctx, sourceID, organization, contextName, piiType, a.windowSize)
 		if err != nil {
+			// The average feeds the breach decision but not the stored stats,
+			// so skip detection for this count and keep the baseline current.
 			log.Printf("Error getting average: %v", err)
 		} else {
 			val, breached = trend.CalculateBreach(a.trendMethod, currentCount, avg, a.alertThreshold, 0)
@@ -261,18 +362,18 @@ func (a *API) analyzeTrend(ctx context.Context, sourceID string, organization st
 		consecutiveNormal = 0
 	}
 
+	outcome := trendOutcome{message: msg, breached: breached}
+
 	if breached {
 		consecutiveNormal = 0
 		cooldown := time.Duration(a.cooldownMins) * time.Minute
 		if !lastAlertTime.IsZero() && time.Since(lastAlertTime) < cooldown {
-			log.Printf("[SUPPRESSED] Alert for %s/%s/%s suppressed due to cooldown (last alert: %v)", sourceID, piiType, contextName, lastAlertTime)
+			outcome.suppressed = true
+			outcome.message = fmt.Sprintf("[SUPPRESSED] Alert for %s/%s/%s suppressed due to cooldown (last alert: %v)", sourceID, piiType, contextName, lastAlertTime)
 		} else {
-			fmt.Println(msg)
-			log.Print(msg)
 			lastAlertTime = time.Now()
-
-			breach := models.BreachDetail{
-				Timestamp: time.Now(),
+			outcome.breach = models.BreachDetail{
+				Timestamp: lastAlertTime,
 				PIIType:   piiType,
 				Context:   contextName,
 				Org:       organization,
@@ -281,27 +382,44 @@ func (a *API) analyzeTrend(ctx context.Context, sourceID string, organization st
 				Average:   tracker.Mean,
 				ZScore:    val,
 			}
-			if err := a.storage.SaveBreach(ctx, breach); err != nil {
-				log.Printf("Error saving breach: %v", err)
-			}
-
-			if a.notifier != nil {
-				if err := a.notifier.Notify(ctx, msg); err != nil {
-					log.Printf("Error sending notification: %v", err)
-				}
-			}
 		}
 	}
 
-	err = a.storage.SaveStats(ctx, sourceID, organization, contextName, piiType, models.Stats{
+	outcome.stats = models.Stats{
 		Count:             tracker.Count,
 		Mean:              tracker.Mean,
 		M2:                tracker.M2,
 		LastAlertTime:     lastAlertTime,
 		ConsecutiveNormal: consecutiveNormal,
-	})
-	if err != nil {
-		log.Printf("Error saving stats: %v", err)
+		Version:           stats.Version,
+	}
+
+	return outcome, nil
+}
+
+// reportTrend records and announces a breach. It runs only after the stats it
+// was derived from have been stored.
+func (a *API) reportTrend(ctx context.Context, outcome trendOutcome) {
+	if !outcome.breached {
+		return
+	}
+
+	if outcome.suppressed {
+		log.Print(outcome.message)
+		return
+	}
+
+	fmt.Println(outcome.message)
+	log.Print(outcome.message)
+
+	if err := a.storage.SaveBreach(ctx, outcome.breach); err != nil {
+		log.Printf("Error saving breach: %v", err)
+	}
+
+	if a.notifier != nil {
+		if err := a.notifier.Notify(ctx, outcome.message); err != nil {
+			log.Printf("Error sending notification: %v", err)
+		}
 	}
 }
 

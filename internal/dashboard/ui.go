@@ -18,13 +18,32 @@ package dashboard
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
+// storageBanner tells the reader that nothing is being persisted. It is shown
+// only when Phield is running without MongoDB.
+const storageBanner = `<div class="banner">
+  <strong>In-memory storage.</strong>
+  Counts, baselines, and alerts are held in this process and are lost when Phield restarts.
+  <a href="https://philterd.github.io/phield/configuration/" target="_blank" rel="noopener noreferrer">Set PHIELD_MONGO_URI</a>
+  to store them in MongoDB.
+</div>`
+
 func (d *Dashboard) serveUI(c *gin.Context) {
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(dashboardHTML))
+	banner := ""
+	if d.ephemeral {
+		banner = storageBanner
+	}
+
+	page := strings.Replace(dashboardHTML, storageBannerMarker, banner, 1)
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(page))
 }
+
+// storageBannerMarker is where the banner goes, just under the header.
+const storageBannerMarker = "<!--storage-banner-->"
 
 const dashboardHTML = `<!DOCTYPE html>
 <html lang="en">
@@ -38,11 +57,12 @@ const dashboardHTML = `<!DOCTYPE html>
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1419; color: #e1e8ed; min-height: 100vh; }
 .header { background: #1a2332; border-bottom: 1px solid #2d3748; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
 .header h1 { font-size: 20px; font-weight: 600; color: #fff; }
-.header h1 span { color: #4da6ff; }
+/* Philterd brand red (#bf5060), lightened here so it clears 4.5:1 against the dark header. */
+.header h1 span { color: #d9697b; }
 .controls { display: flex; gap: 12px; align-items: center; }
 .controls select { background: #2d3748; color: #e1e8ed; border: 1px solid #4a5568; border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
-.controls button { background: #4da6ff; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; font-size: 13px; cursor: pointer; font-weight: 500; }
-.controls button:hover { background: #3b8fd4; }
+.controls button { background: #bf5060; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; font-size: 13px; cursor: pointer; font-weight: 500; }
+.controls button:hover { background: #cc5f6f; }
 .status { font-size: 12px; color: #718096; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; padding: 24px; }
 .stat-card { background: #1a2332; border: 1px solid #2d3748; border-radius: 8px; padding: 16px; }
@@ -88,6 +108,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .deviation.up { color: #fc8181; }
 .deviation.down { color: #68d391; }
 .deviation.flat { color: #718096; }
+.banner { margin: 16px 24px 0; padding: 12px 16px; border: 1px solid #7b5c1e; border-left: 3px solid #fbd38d; border-radius: 6px; background: #241f14; color: #e8d5ab; font-size: 13px; line-height: 1.5; }
+.banner strong { color: #fbd38d; }
+.banner a { color: #fbd38d; }
+.footer { border-top: 1px solid #2d3748; margin: 8px 24px 0; padding: 16px 0 24px; display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; justify-content: space-between; font-size: 12px; color: #718096; }
+.footer .links { display: flex; flex-wrap: wrap; gap: 16px; }
+.footer a { color: #d9697b; text-decoration: none; }
+.footer a:hover { text-decoration: underline; }
 @media (max-width: 900px) { .charts { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -106,6 +133,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <span class="status" id="status">Loading...</span>
   </div>
 </div>
+
+<!--storage-banner-->
 
 <div class="grid" id="summary"></div>
 
@@ -139,6 +168,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <h3>Alert Timeline</h3>
     <div id="alerts"></div>
   </div>
+</div>
+
+<div class="footer">
+  <span>Copyright 2026 Philterd, LLC</span>
+  <span class="links">
+    <a href="https://www.philterd.ai" target="_blank" rel="noopener noreferrer">philterd.ai</a>
+    <a href="https://philterd.ai/phield/" target="_blank" rel="noopener noreferrer">About Phield</a>
+    <a href="https://github.com/philterd/phield" target="_blank" rel="noopener noreferrer">Source code</a>
+    <a href="https://philterd.ai/support/" target="_blank" rel="noopener noreferrer">Help and support</a>
+  </span>
 </div>
 
 <script>

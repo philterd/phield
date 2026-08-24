@@ -35,13 +35,17 @@ Example message:
 
 When `PHIELD_KAFKA_BROKERS` is set, Phield starts a background consumer that listens to the specified topic. Each message received is processed identically to an HTTP ingestion request:
 
-1. The JSON is parsed and validated.
+1. The JSON is parsed and validated against the same rules as the [ingest API](api.md#validation). A message that fails either step is logged and skipped, and the consumer moves on to the next message.
 2. The PII counts are stored in the configured storage (MongoDB or In-Memory).
 3. Trend analysis is performed for each PII type.
 4. If a trend breach is detected, notifications are sent via the configured channels.
+
+`PHIELD_API_KEY` does not apply to Kafka messages. Use Kafka's own authentication to control who can write to the topic.
 
 ## Benefits of Kafka Ingestion
 
 - **Scalability**: Kafka handles high throughput and provides buffering.
 - **Decoupling**: Phield can consume data asynchronously without affecting the performance of the producing services.
 - **Reliability**: Phield's Kafka consumer uses group management, allowing for multiple instances to share the load and provide failover.
+
+When several instances share one MongoDB, counts for the same source, organization, context, and PII type can arrive at two of them at once. Each instance updates that baseline with a versioned write, and an instance whose write is rejected because another got there first redoes its analysis against the current baseline. No count is dropped from the baseline, and an alert is raised only after the baseline it came from has been stored.

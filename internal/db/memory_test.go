@@ -18,6 +18,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -159,4 +160,54 @@ func TestInMemoryStorage(t *testing.T) {
 			t.Errorf("expected average %f, got %f", expected, avg)
 		}
 	})
+}
+
+func TestInMemorySaveStatsVersioning(t *testing.T) {
+	ctx := context.Background()
+	s := NewInMemoryStorage()
+
+	if err := s.SaveStats(ctx, "source-1", "org-1", "default", "ssn", models.Stats{Count: 1, Version: 0}); err != nil {
+		t.Fatalf("first write: %v", err)
+	}
+
+	stored, err := s.GetStats(ctx, "source-1", "org-1", "default", "ssn")
+	if err != nil {
+		t.Fatalf("GetStats: %v", err)
+	}
+	if stored.Version != 1 {
+		t.Errorf("expected version 1 after the first write, got %d", stored.Version)
+	}
+
+	// A write computed from the version that has just been superseded.
+	err = s.SaveStats(ctx, "source-1", "org-1", "default", "ssn", models.Stats{Count: 2, Version: 0})
+	if !errors.Is(err, ErrStatsConflict) {
+		t.Errorf("expected ErrStatsConflict for a stale version, got %v", err)
+	}
+
+	stored, err = s.GetStats(ctx, "source-1", "org-1", "default", "ssn")
+	if err != nil {
+		t.Fatalf("GetStats: %v", err)
+	}
+	if stored.Count != 1 {
+		t.Errorf("expected the rejected write to change nothing, got count %d", stored.Count)
+	}
+
+	// A write computed from what is stored now.
+	if err := s.SaveStats(ctx, "source-1", "org-1", "default", "ssn", models.Stats{Count: 2, Version: 1}); err != nil {
+		t.Fatalf("second write: %v", err)
+	}
+
+	stored, err = s.GetStats(ctx, "source-1", "org-1", "default", "ssn")
+	if err != nil {
+		t.Fatalf("GetStats: %v", err)
+	}
+	if stored.Count != 2 || stored.Version != 2 {
+		t.Errorf("expected count 2 at version 2, got count %d at version %d", stored.Count, stored.Version)
+	}
+
+	// A first write for a series that does not exist cannot claim a version.
+	err = s.SaveStats(ctx, "source-2", "org-1", "default", "ssn", models.Stats{Count: 1, Version: 3})
+	if !errors.Is(err, ErrStatsConflict) {
+		t.Errorf("expected ErrStatsConflict for an unknown series at version 3, got %v", err)
+	}
 }

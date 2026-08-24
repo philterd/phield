@@ -19,12 +19,14 @@ See the [documentation](https://philterd.github.io/phield) for installation, con
 - Alert Cooldown to suppress notification storms for sustained breaches, with "Back to Normal" automatic reset.
 - Replay Capability to test and fine-tune trend settings against historical data.
 - Triggers structured log alerts and optional Slack/PagerDuty notifications when counts exceed a configurable threshold.
+- Optional API key authentication via `PHIELD_API_KEY`, sent as a bearer token on the ingest, mute, and replay endpoints.
+- Validates ingested counts and rejects malformed requests.
 
 ## Dashboard
 
 Phield includes a built-in web dashboard for visualizing PII flows and alerts without requiring external tooling like Grafana or Splunk.
 
-Access the dashboard at `http://localhost:8080/dashboard` (or your configured port).
+Access the dashboard at `http://localhost:8080/dashboard` (or your configured port). Requests to the root redirect there. Without MongoDB configured, the page shows a banner saying that data is held in memory and lost on restart. The dashboard is not covered by `PHIELD_API_KEY`, which protects the write endpoints rather than these aggregate, PII-free reads.
 
 The dashboard provides:
 
@@ -85,11 +87,34 @@ The script supports several environment variables for configuration:
 | `CONTEXT` | `production` | The context for the simulated data. |
 | `ITERATIONS` | `50` | The number of baseline iterations to send. |
 | `SLEEP_INTERVAL` | `1` | The sleep interval (in seconds) between iterations. |
+| `PHIELD_API_KEY` | `""` | Sent as a bearer token when the Phield instance requires an API key. |
 
 Example using custom configuration:
 
 ```bash
 PHIELD_URL=http://localhost:8080 ITERATIONS=100 ./simulate_data.sh
+```
+
+## Tests
+
+```bash
+make test
+```
+
+The MongoDB storage tests run against a real MongoDB instance at `mongodb://localhost:27017`. Set `PHIELD_TEST_MONGO_URI` to use a different one. Each test creates a database of its own and drops it when it finishes. If no instance is reachable, those tests skip, except in CI where they fail.
+
+```bash
+docker run -d --rm -p 27017:27017 mongo:8.2.12
+```
+
+### Smoke test
+
+`smoke-test.sh` checks a running instance end to end: it ingests a baseline, confirms malformed requests are rejected, reads the counts back through the dashboard API, triggers a spike and looks for the alert, then exercises replay, mute, and metrics. It exits non-zero if any check fails.
+
+```bash
+./smoke-test.sh
+PHIELD_URL=https://localhost:8443 ./smoke-test.sh
+PHIELD_API_KEY=your-key ./smoke-test.sh
 ```
 
 ## License

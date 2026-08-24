@@ -28,10 +28,12 @@ func TestLoad(t *testing.T) {
 	os.Unsetenv("PHIELD_PORT")
 	os.Unsetenv("PHIELD_CERT_FILE")
 	os.Unsetenv("PHIELD_KEY_FILE")
+	os.Unsetenv("PHIELD_API_KEY")
 	os.Unsetenv("PHIELD_SLACK_WEBHOOK_URL")
 	os.Unsetenv("PHIELD_PAGERDUTY_ROUTING_KEY")
 	os.Unsetenv("PHIELD_PAGERDUTY_SEVERITY")
 	os.Unsetenv("PHIELD_WINDOW_SIZE")
+	os.Unsetenv("PHIELD_METRICS_RETENTION_DAYS")
 
 	t.Run("Default values", func(t *testing.T) {
 		cfg := Load()
@@ -50,6 +52,12 @@ func TestLoad(t *testing.T) {
 		if cfg.WindowSize != 24 {
 			t.Errorf("expected 24 WindowSize, got %d", cfg.WindowSize)
 		}
+		if cfg.APIKey != "" {
+			t.Errorf("expected empty APIKey, got %s", cfg.APIKey)
+		}
+		if cfg.MetricsRetentionDays != 7 {
+			t.Errorf("expected 7 MetricsRetentionDays, got %d", cfg.MetricsRetentionDays)
+		}
 	})
 
 	t.Run("Override values", func(t *testing.T) {
@@ -58,7 +66,11 @@ func TestLoad(t *testing.T) {
 		os.Setenv("PHIELD_PORT", "9090")
 		os.Setenv("PHIELD_PAGERDUTY_SEVERITY", "error")
 		os.Setenv("PHIELD_WINDOW_SIZE", "48")
+		os.Setenv("PHIELD_API_KEY", "s3cret")
+		os.Setenv("PHIELD_METRICS_RETENTION_DAYS", "30")
 		defer func() {
+			os.Unsetenv("PHIELD_API_KEY")
+			os.Unsetenv("PHIELD_METRICS_RETENTION_DAYS")
 			os.Unsetenv("PHIELD_MONGO_URI")
 			os.Unsetenv("PHIELD_ALERT_THRESHOLD")
 			os.Unsetenv("PHIELD_PORT")
@@ -75,6 +87,12 @@ func TestLoad(t *testing.T) {
 		}
 		if cfg.Port != "9090" {
 			t.Errorf("expected 9090 Port, got %s", cfg.Port)
+		}
+		if cfg.APIKey != "s3cret" {
+			t.Errorf("expected s3cret APIKey, got %s", cfg.APIKey)
+		}
+		if cfg.MetricsRetentionDays != 30 {
+			t.Errorf("expected 30 MetricsRetentionDays, got %d", cfg.MetricsRetentionDays)
 		}
 		if cfg.PagerDutySeverity != "error" {
 			t.Errorf("expected error PagerDutySeverity, got %s", cfg.PagerDutySeverity)

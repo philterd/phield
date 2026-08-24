@@ -16,7 +16,12 @@
 
 package models
 
-import "time"
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+)
 
 type PIIEntry struct {
 	Timestamp    time.Time      `bson:"timestamp" json:"timestamp"`
@@ -32,6 +37,35 @@ type IngestRequest struct {
 	Organization string         `json:"organization"`
 	Context      string         `json:"context"`
 	PIITypes     map[string]int `json:"pii_types"`
+}
+
+// Validate reports whether an ingest request is well formed. Counts are grouped
+// for trend analysis by source, organization, context, and PII type, so a
+// request without a source or without counts has nothing to contribute.
+func (r IngestRequest) Validate() error {
+	if strings.TrimSpace(r.SourceID) == "" {
+		return errors.New("source_id is required")
+	}
+
+	if len(r.PIITypes) == 0 {
+		return errors.New("pii_types is required and must contain at least one count")
+	}
+
+	for piiType, count := range r.PIITypes {
+		if strings.TrimSpace(piiType) == "" {
+			return errors.New("pii_types contains an empty PII type name")
+		}
+		// Counts are stored as fields of a document and queried by path, which
+		// a name containing a dot or leading dollar sign would break.
+		if strings.Contains(piiType, ".") || strings.HasPrefix(piiType, "$") {
+			return fmt.Errorf("pii_types name %q must not contain '.' or start with '$'", piiType)
+		}
+		if count < 0 {
+			return fmt.Errorf("count for pii_types name %q must not be negative", piiType)
+		}
+	}
+
+	return nil
 }
 
 type MuteRequest struct {
@@ -64,6 +98,10 @@ type Stats struct {
 	M2                float64   `bson:"m2" json:"m2"`
 	LastAlertTime     time.Time `bson:"last_alert_time" json:"last_alert_time"`
 	ConsecutiveNormal int       `bson:"consecutive_normal" json:"consecutive_normal"`
+	// Version guards against two ingests for the same series overwriting each
+	// other. A write carries the version it read, and storage rejects it if the
+	// stored version has moved on. See Storage.SaveStats.
+	Version int `bson:"version" json:"version"`
 }
 
 type ReplayResponse struct {

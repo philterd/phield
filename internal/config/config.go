@@ -27,6 +27,7 @@ type Config struct {
 	Port                string
 	CertFile            string
 	KeyFile             string
+	APIKey              string
 	SlackWebhook        string
 	PagerDutyRoutingKey string
 	PagerDutySeverity   string
@@ -39,6 +40,9 @@ type Config struct {
 	KafkaTopic          string
 	KafkaGroupID        string
 	DashboardEnabled    bool
+	// MetricsRetentionDays is how long /ingest latency samples are kept. Zero
+	// keeps them forever.
+	MetricsRetentionDays int
 }
 
 func Load() *Config {
@@ -48,6 +52,7 @@ func Load() *Config {
 		Port:                getEnv("PHIELD_PORT", "8080"),
 		CertFile:            getEnv("PHIELD_CERT_FILE", ""),
 		KeyFile:             getEnv("PHIELD_KEY_FILE", ""),
+		APIKey:              getEnv("PHIELD_API_KEY", ""),
 		SlackWebhook:        getEnv("PHIELD_SLACK_WEBHOOK_URL", ""),
 		PagerDutyRoutingKey: getEnv("PHIELD_PAGERDUTY_ROUTING_KEY", ""),
 		PagerDutySeverity:   getEnv("PHIELD_PAGERDUTY_SEVERITY", "critical"),
@@ -60,6 +65,8 @@ func Load() *Config {
 		KafkaTopic:          getEnv("PHIELD_KAFKA_TOPIC", "phield-pii-counts"),
 		KafkaGroupID:        getEnv("PHIELD_KAFKA_GROUP_ID", "phield"),
 		DashboardEnabled:    getEnvAsBool("PHIELD_DASHBOARD_ENABLED", true),
+
+		MetricsRetentionDays: getEnvAsInt("PHIELD_METRICS_RETENTION_DAYS", 7),
 	}
 }
 

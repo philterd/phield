@@ -29,10 +29,13 @@ services:
       - PHIELD_PORT=8443
       - PHIELD_CERT_FILE=/root/cert.pem
       - PHIELD_KEY_FILE=/root/key.pem
+      # Set to require an API key as a bearer token on every API request.
+      - PHIELD_API_KEY=
       - PHIELD_SLACK_WEBHOOK_URL=
       - PHIELD_PAGERDUTY_ROUTING_KEY=
       - PHIELD_PAGERDUTY_SEVERITY=critical
       - PHIELD_DASHBOARD_ENABLED=true
+      - PHIELD_METRICS_RETENTION_DAYS=7
     depends_on:
       mongodb:
         condition: service_healthy

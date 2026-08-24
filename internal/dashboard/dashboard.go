@@ -28,13 +28,24 @@ import (
 
 type Dashboard struct {
 	storage db.Storage
+	// ephemeral is true when Phield is running without MongoDB, which the page
+	// says plainly rather than letting a reader trust numbers that vanish on
+	// the next restart.
+	ephemeral bool
 }
 
-func New(storage db.Storage) *Dashboard {
-	return &Dashboard{storage: storage}
+func New(storage db.Storage, ephemeral bool) *Dashboard {
+	return &Dashboard{storage: storage, ephemeral: ephemeral}
 }
 
+// RegisterRoutes registers the dashboard UI and its JSON endpoints. These are
+// not covered by PHIELD_API_KEY: the key exists to keep bad data out, and the
+// dashboard only reads aggregate counts, never PII.
 func (d *Dashboard) RegisterRoutes(r *gin.Engine) {
+	// The dashboard is the only page Phield serves, so the root goes to it.
+	r.GET("/", func(c *gin.Context) {
+		c.Redirect(http.StatusFound, "/dashboard")
+	})
 	r.GET("/dashboard", d.serveUI)
 	api := r.Group("/api/dashboard")
 	{
@@ -95,12 +106,12 @@ func (d *Dashboard) handleSummary(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"total_entries":  totalEntries,
-		"total_breaches": len(breaches),
-		"unique_sources": len(sources),
-		"unique_types":   len(piiTypes),
+		"total_entries":   totalEntries,
+		"total_breaches":  len(breaches),
+		"unique_sources":  len(sources),
+		"unique_types":    len(piiTypes),
 		"unique_contexts": len(contexts),
-		"window_hours":   hours,
+		"window_hours":    hours,
 	})
 }
 
@@ -218,7 +229,7 @@ func (d *Dashboard) handleFlows(c *gin.Context) {
 	}
 
 	type flowResult struct {
-		Source   string         `json:"source"`
+		Source  string         `json:"source"`
 		Context string         `json:"context"`
 		Types   map[string]int `json:"types"`
 		Total   int            `json:"total"`

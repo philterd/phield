@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -51,14 +52,25 @@ func (m *mockKafkaReader) Close() error {
 	return nil
 }
 
+// The consumer runs in its own goroutine, so the mock is written there and read
+// from the test.
 type mockIngestProcessor struct {
+	mu       sync.Mutex
 	requests []models.IngestRequest
 	err      error
 }
 
 func (m *mockIngestProcessor) ProcessIngest(ctx context.Context, req models.IngestRequest) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.requests = append(m.requests, req)
 	return m.err
+}
+
+func (m *mockIngestProcessor) processed() []models.IngestRequest {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]models.IngestRequest(nil), m.requests...)
 }
 
 func TestConsumer_Start(t *testing.T) {
@@ -91,12 +103,14 @@ func TestConsumer_Start(t *testing.T) {
 	// Wait for processing
 	time.Sleep(50 * time.Millisecond)
 
-	if len(mockProcessor.requests) != 1 {
-		t.Errorf("expected 1 request, got %d", len(mockProcessor.requests))
+	processed := mockProcessor.processed()
+
+	if len(processed) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(processed))
 	}
 
-	if mockProcessor.requests[0].SourceID != "test-source" {
-		t.Errorf("expected source-id test-source, got %s", mockProcessor.requests[0].SourceID)
+	if processed[0].SourceID != "test-source" {
+		t.Errorf("expected source-id test-source, got %s", processed[0].SourceID)
 	}
 }
 
@@ -120,8 +134,8 @@ func TestConsumer_Start_UnmarshalError(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	if len(mockProcessor.requests) != 0 {
-		t.Errorf("expected 0 requests due to unmarshal error, got %d", len(mockProcessor.requests))
+	if processed := mockProcessor.processed(); len(processed) != 0 {
+		t.Errorf("expected 0 requests due to unmarshal error, got %d", len(processed))
 	}
 }
 
@@ -143,8 +157,8 @@ func TestConsumer_Start_ReadError(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	if len(mockProcessor.requests) != 0 {
-		t.Errorf("expected 0 requests due to read error, got %d", len(mockProcessor.requests))
+	if processed := mockProcessor.processed(); len(processed) != 0 {
+		t.Errorf("expected 0 requests due to read error, got %d", len(processed))
 	}
 }
 

@@ -21,10 +21,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/philterd/phield/internal/api"
+	"github.com/philterd/phield/internal/auth"
 	"github.com/philterd/phield/internal/db"
 	"github.com/philterd/phield/internal/models"
 )
@@ -33,7 +36,7 @@ func setupTestDashboard() (*gin.Engine, db.Storage) {
 	gin.SetMode(gin.TestMode)
 	storage := db.NewInMemoryStorage()
 	r := gin.New()
-	d := New(storage)
+	d := New(storage, false)
 	d.RegisterRoutes(r)
 	return r, storage
 }
@@ -199,4 +202,133 @@ func TestEmptyAlertsReturnsEmptyArray(t *testing.T) {
 	if len(alerts) != 0 {
 		t.Errorf("expected 0 alerts, got %d", len(alerts))
 	}
+}
+
+// The API key keeps bad data out. The dashboard only reads aggregate counts, so
+// it stays reachable when one is configured.
+func TestDashboardIsNotBehindTheAPIKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	storage := db.NewInMemoryStorage()
+
+	// Wired the way main.go wires it: the API is authenticated, the dashboard is not.
+	r := gin.New()
+	a := api.NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+	a.RegisterRoutes(r, auth.BearerToken("s3cret"))
+	New(storage, false).RegisterRoutes(r)
+
+	get := func(path string) int {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", path, nil)
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	for _, path := range []string{
+		"/dashboard",
+		"/api/dashboard/summary",
+		"/api/dashboard/alerts",
+		"/api/dashboard/entities",
+		"/api/dashboard/flows",
+		"/api/dashboard/trends",
+	} {
+		if code := get(path); code != http.StatusOK {
+			t.Errorf("%s: expected 200 without an API key, got %d", path, code)
+		}
+	}
+
+	// The write endpoints stay protected.
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/ingest", strings.NewReader(`{"source_id":"s1","pii_types":{"ssn":1}}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("/ingest: expected 401 without an API key, got %d", w.Code)
+	}
+}
+
+func TestRootRedirectsToDashboard(t *testing.T) {
+	r, _ := setupTestDashboard()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected status 302, got %d", w.Code)
+	}
+	if location := w.Header().Get("Location"); location != "/dashboard" {
+		t.Errorf("expected a redirect to /dashboard, got %q", location)
+	}
+}
+
+func TestDashboardFooter(t *testing.T) {
+	r, _ := setupTestDashboard()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/dashboard", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+
+	for _, want := range []string{
+		"Copyright 2026 Philterd, LLC",
+		`href="https://www.philterd.ai"`,
+		`href="https://philterd.ai/phield/"`,
+		`href="https://github.com/philterd/phield"`,
+		`href="https://philterd.ai/support/"`,
+	} {
+		if !strings.Contains(w.Body.String(), want) {
+			t.Errorf("expected the page to contain %q", want)
+		}
+	}
+}
+
+func TestStorageBanner(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	serve := func(ephemeral bool) string {
+		r := gin.New()
+		New(db.NewInMemoryStorage(), ephemeral).RegisterRoutes(r)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/dashboard", nil)
+		r.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", w.Code)
+		}
+		return w.Body.String()
+	}
+
+	t.Run("shown without MongoDB", func(t *testing.T) {
+		page := serve(true)
+
+		for _, want := range []string{
+			"In-memory storage.",
+			"lost when Phield restarts",
+			"PHIELD_MONGO_URI",
+			`href="https://philterd.github.io/phield/configuration/"`,
+		} {
+			if !strings.Contains(page, want) {
+				t.Errorf("expected the page to contain %q", want)
+			}
+		}
+	})
+
+	t.Run("hidden with MongoDB", func(t *testing.T) {
+		page := serve(false)
+
+		if strings.Contains(page, "In-memory storage.") {
+			t.Error("expected no storage banner")
+		}
+		if strings.Contains(page, storageBannerMarker) {
+			t.Error("expected the marker to be removed from the page")
+		}
+		// The rest of the page is still there.
+		if !strings.Contains(page, "Phield") || !strings.Contains(page, "Alert Timeline") {
+			t.Error("expected the dashboard to render")
+		}
+	})
 }
