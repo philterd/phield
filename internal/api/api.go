@@ -35,26 +35,28 @@ import (
 )
 
 type API struct {
-	storage        db.Storage
-	alertThreshold float64
-	trendMethod    string
-	windowSize     int
-	sensitivity    float64
-	warmUpCount    int
-	cooldownMins   int
-	notifier       notifier.Notifier
+	storage            db.Storage
+	applicationVersion string
+	alertThreshold     float64
+	trendMethod        string
+	windowSize         int
+	sensitivity        float64
+	warmUpCount        int
+	cooldownMins       int
+	notifier           notifier.Notifier
 }
 
-func NewAPI(storage db.Storage, alertThreshold float64, trendMethod string, windowSize int, sensitivity float64, warmUpCount int, cooldownMins int, n notifier.Notifier) *API {
+func NewAPI(storage db.Storage, alertThreshold float64, trendMethod string, windowSize int, sensitivity float64, warmUpCount int, cooldownMins int, n notifier.Notifier, applicationVersion string) *API {
 	return &API{
-		storage:        storage,
-		alertThreshold: alertThreshold,
-		trendMethod:    trendMethod,
-		windowSize:     windowSize,
-		sensitivity:    sensitivity,
-		warmUpCount:    warmUpCount,
-		cooldownMins:   cooldownMins,
-		notifier:       n,
+		storage:            storage,
+		applicationVersion: applicationVersion,
+		alertThreshold:     alertThreshold,
+		trendMethod:        trendMethod,
+		windowSize:         windowSize,
+		sensitivity:        sensitivity,
+		warmUpCount:        warmUpCount,
+		cooldownMins:       cooldownMins,
+		notifier:           n,
 	}
 }
 
@@ -193,7 +195,7 @@ func (a *API) handleHealth(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	c.JSON(http.StatusOK, gin.H{"status": "UP", "applicationVersion": a.applicationVersion})
 }
 
 func (a *API) handleIngest(c *gin.Context) {

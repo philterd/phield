@@ -39,7 +39,7 @@ func TestHandleIngest(t *testing.T) {
 	storage := db.NewInMemoryStorage()
 
 	t.Run("Successful ingest", func(t *testing.T) {
-		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil, "test-version")
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -76,7 +76,7 @@ func TestHandleIngest(t *testing.T) {
 	})
 
 	t.Run("Invalid JSON", func(t *testing.T) {
-		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil, "test-version")
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -91,7 +91,7 @@ func TestHandleIngest(t *testing.T) {
 	})
 
 	t.Run("Default organization", func(t *testing.T) {
-		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil, "test-version")
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -129,7 +129,7 @@ func TestHandleIngest(t *testing.T) {
 	})
 
 	t.Run("Health check", func(t *testing.T) {
-		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil, "test-version")
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -147,14 +147,14 @@ func TestHandleIngest(t *testing.T) {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
 
-		if response["status"] != "ok" {
-			t.Errorf("expected status ok, got %s", response["status"])
+		if response["status"] != "UP" || response["applicationVersion"] != "test-version" {
+			t.Errorf("unexpected health response: %v", response)
 		}
 	})
 
 	t.Run("Metrics", func(t *testing.T) {
 		testStorage := db.NewInMemoryStorage()
-		a := NewAPI(testStorage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(testStorage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil, "test-version")
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -183,7 +183,7 @@ func TestHandleIngest(t *testing.T) {
 	})
 
 	t.Run("Mute endpoint", func(t *testing.T) {
-		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil, "test-version")
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -235,7 +235,7 @@ func TestHandleIngest(t *testing.T) {
 			_ = testStorage.Save(context.Background(), e)
 		}
 
-		a := NewAPI(testStorage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(testStorage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil, "test-version")
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -270,7 +270,7 @@ func TestHandleIngest(t *testing.T) {
 
 func TestRegisterRoutesAppliesMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	a := NewAPI(db.NewInMemoryStorage(), 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+	a := NewAPI(db.NewInMemoryStorage(), 0.2, "percentage_delta", 24, 3.0, 20, 60, nil, "test-version")
 	r := gin.New()
 	a.RegisterRoutes(r, auth.BearerToken("s3cret"))
 
@@ -392,7 +392,7 @@ func TestHandleIngestValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			storage := db.NewInMemoryStorage()
-			a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+			a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil, "test-version")
 			r := gin.New()
 			a.RegisterRoutes(r)
 
@@ -422,7 +422,7 @@ func TestHandleIngestValidation(t *testing.T) {
 
 func TestProcessIngestValidatesForKafka(t *testing.T) {
 	storage := db.NewInMemoryStorage()
-	a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+	a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil, "test-version")
 
 	// The Kafka consumer calls ProcessIngest directly, bypassing the handler.
 	err := a.ProcessIngest(context.Background(), models.IngestRequest{PIITypes: map[string]int{"ssn": 3}})
@@ -454,7 +454,7 @@ func TestLimitRequestBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	newRouter := func(maxBytes int64) *gin.Engine {
-		a := NewAPI(db.NewInMemoryStorage(), 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(db.NewInMemoryStorage(), 0.2, "percentage_delta", 24, 3.0, 20, 60, nil, "test-version")
 		r := gin.New()
 		r.Use(LimitRequestBody(maxBytes))
 		a.RegisterRoutes(r)
@@ -531,7 +531,7 @@ func TestHandleHealth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	get := func(storage db.Storage) *httptest.ResponseRecorder {
-		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil, "test-version")
 		r := gin.New()
 		a.RegisterRoutes(r)
 
@@ -548,7 +548,7 @@ func TestHandleHealth(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected status 200, got %d", w.Code)
 		}
-		if !strings.Contains(w.Body.String(), `"status":"ok"`) {
+		if !strings.Contains(w.Body.String(), `"status":"UP"`) || !strings.Contains(w.Body.String(), `"applicationVersion":"test-version"`) {
 			t.Errorf("unexpected body: %s", w.Body.String())
 		}
 	})
