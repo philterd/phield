@@ -214,7 +214,8 @@ curl -k https://localhost:8443/health
 
 ```json
 {
-  "status": "ok"
+  "status": "UP",
+  "applicationVersion": "1.0.0"
 }
 ```
 

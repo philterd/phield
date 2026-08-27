@@ -110,7 +110,7 @@ func ingest(t *testing.T, a *API, sourceID string, count int) {
 func TestAnalyzeTrendKeepsBaselineWhenStatsCannotBeRead(t *testing.T) {
 	storage := db.NewInMemoryStorage()
 	stub := &stubStorage{Storage: storage}
-	a := NewAPI(stub, 0.2, "z_score", 24, 3.0, 20, 60, nil)
+	a := NewAPI(stub, 0.2, "z_score", 24, 3.0, 20, 60, nil, "test-version")
 
 	// Build up a baseline.
 	for i := 0; i < 25; i++ {
@@ -155,7 +155,7 @@ func TestAnalyzeTrendKeepsBaselineWhenStatsCannotBeRead(t *testing.T) {
 // updating, and writing the stats without a version check loses some of them.
 func TestAnalyzeTrendDoesNotLoseConcurrentUpdates(t *testing.T) {
 	storage := db.NewInMemoryStorage()
-	a := NewAPI(storage, 0.2, "z_score", 24, 3.0, 20, 60, nil)
+	a := NewAPI(storage, 0.2, "z_score", 24, 3.0, 20, 60, nil, "test-version")
 
 	const ingests = 50
 
@@ -197,7 +197,7 @@ func TestAnalyzeTrendRetriesOnConflictAndAlertsOnce(t *testing.T) {
 	storage := db.NewInMemoryStorage()
 	stub := &stubStorage{Storage: storage}
 	notifier := &countingNotifier{}
-	a := NewAPI(stub, 0.2, "percentage_delta", 24, 3.0, 20, 60, notifier)
+	a := NewAPI(stub, 0.2, "percentage_delta", 24, 3.0, 20, 60, notifier, "test-version")
 
 	// A steady baseline, so the spike below is a breach.
 	for i := 0; i < 5; i++ {
@@ -250,7 +250,7 @@ func TestAnalyzeTrendGivesUpAfterRepeatedConflicts(t *testing.T) {
 	storage := db.NewInMemoryStorage()
 	stub := &stubStorage{Storage: storage}
 	notifier := &countingNotifier{}
-	a := NewAPI(stub, 0.2, "percentage_delta", 24, 3.0, 20, 60, notifier)
+	a := NewAPI(stub, 0.2, "percentage_delta", 24, 3.0, 20, 60, notifier, "test-version")
 
 	for i := 0; i < 5; i++ {
 		ingest(t, a, "source-1", 10)
