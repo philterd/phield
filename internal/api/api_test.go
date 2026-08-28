@@ -39,7 +39,7 @@ func TestHandleIngest(t *testing.T) {
 	storage := db.NewInMemoryStorage()
 
 	t.Run("Successful ingest", func(t *testing.T) {
-		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(storage, "1.0.0", 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -76,7 +76,7 @@ func TestHandleIngest(t *testing.T) {
 	})
 
 	t.Run("Invalid JSON", func(t *testing.T) {
-		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(storage, "1.0.0", 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -91,7 +91,7 @@ func TestHandleIngest(t *testing.T) {
 	})
 
 	t.Run("Default organization", func(t *testing.T) {
-		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(storage, "1.0.0", 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -129,7 +129,7 @@ func TestHandleIngest(t *testing.T) {
 	})
 
 	t.Run("Health check", func(t *testing.T) {
-		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(storage, "1.0.0", 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -147,14 +147,14 @@ func TestHandleIngest(t *testing.T) {
 			t.Fatalf("failed to unmarshal response: %v", err)
 		}
 
-		if response["status"] != "ok" {
-			t.Errorf("expected status ok, got %s", response["status"])
+		if response["status"] != "UP" {
+			t.Errorf("expected status UP, got %s", response["status"])
 		}
 	})
 
 	t.Run("Metrics", func(t *testing.T) {
 		testStorage := db.NewInMemoryStorage()
-		a := NewAPI(testStorage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(testStorage, "1.0.0", 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -183,7 +183,7 @@ func TestHandleIngest(t *testing.T) {
 	})
 
 	t.Run("Mute endpoint", func(t *testing.T) {
-		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(storage, "1.0.0", 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -235,7 +235,7 @@ func TestHandleIngest(t *testing.T) {
 			_ = testStorage.Save(context.Background(), e)
 		}
 
-		a := NewAPI(testStorage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(testStorage, "1.0.0", 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
 		r := gin.Default()
 		a.RegisterRoutes(r)
 
@@ -270,7 +270,7 @@ func TestHandleIngest(t *testing.T) {
 
 func TestRegisterRoutesAppliesMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	a := NewAPI(db.NewInMemoryStorage(), 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+	a := NewAPI(db.NewInMemoryStorage(), "1.0.0", 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
 	r := gin.New()
 	a.RegisterRoutes(r, auth.BearerToken("s3cret"))
 
@@ -392,7 +392,7 @@ func TestHandleIngestValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			storage := db.NewInMemoryStorage()
-			a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+			a := NewAPI(storage, "1.0.0", 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
 			r := gin.New()
 			a.RegisterRoutes(r)
 
@@ -422,7 +422,7 @@ func TestHandleIngestValidation(t *testing.T) {
 
 func TestProcessIngestValidatesForKafka(t *testing.T) {
 	storage := db.NewInMemoryStorage()
-	a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+	a := NewAPI(storage, "1.0.0", 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
 
 	// The Kafka consumer calls ProcessIngest directly, bypassing the handler.
 	err := a.ProcessIngest(context.Background(), models.IngestRequest{PIITypes: map[string]int{"ssn": 3}})
@@ -454,7 +454,7 @@ func TestLimitRequestBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	newRouter := func(maxBytes int64) *gin.Engine {
-		a := NewAPI(db.NewInMemoryStorage(), 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+		a := NewAPI(db.NewInMemoryStorage(), "1.0.0", 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
 		r := gin.New()
 		r.Use(LimitRequestBody(maxBytes))
 		a.RegisterRoutes(r)
@@ -530,40 +530,60 @@ func (s *failingPingStorage) Ping(ctx context.Context) error {
 func TestHandleHealth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	get := func(storage db.Storage) *httptest.ResponseRecorder {
-		a := NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+	// A version unlike the default, so a passing assertion means the version
+	// reached the handler rather than matching by coincidence.
+	const testVersion = "9.9.9-test"
+
+	get := func(t *testing.T, storage db.Storage) (int, map[string]any) {
+		t.Helper()
+
+		a := NewAPI(storage, testVersion, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
 		r := gin.New()
 		a.RegisterRoutes(r)
 
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/health", nil)
 		r.ServeHTTP(w, req)
-		return w
+
+		var body map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("failed to unmarshal response %q: %v", w.Body.String(), err)
+		}
+		return w.Code, body
 	}
 
 	// In-memory storage is part of the process, so there is nothing to reach.
 	t.Run("healthy with in-memory storage", func(t *testing.T) {
-		w := get(db.NewInMemoryStorage())
+		code, body := get(t, db.NewInMemoryStorage())
 
-		if w.Code != http.StatusOK {
-			t.Fatalf("expected status 200, got %d", w.Code)
+		if code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", code)
 		}
-		if !strings.Contains(w.Body.String(), `"status":"ok"`) {
-			t.Errorf("unexpected body: %s", w.Body.String())
+		if body["status"] != "UP" {
+			t.Errorf("expected status UP, got %v", body["status"])
+		}
+		if body["applicationVersion"] != testVersion {
+			t.Errorf("expected applicationVersion %q, got %v", testVersion, body["applicationVersion"])
 		}
 	})
 
 	t.Run("unhealthy when the storage cannot be reached", func(t *testing.T) {
-		w := get(&failingPingStorage{
+		code, body := get(t, &failingPingStorage{
 			Storage: db.NewInMemoryStorage(),
 			err:     errors.New("no reachable servers"),
 		})
 
-		if w.Code != http.StatusServiceUnavailable {
-			t.Fatalf("expected status 503, got %d", w.Code)
+		if code != http.StatusServiceUnavailable {
+			t.Fatalf("expected status 503, got %d", code)
 		}
-		if !strings.Contains(w.Body.String(), `"storage":"unreachable"`) {
-			t.Errorf("unexpected body: %s", w.Body.String())
+		if body["status"] == "UP" {
+			t.Errorf("expected a status other than UP, got %v", body["status"])
+		}
+		if body["storage"] != "unreachable" {
+			t.Errorf("expected storage unreachable, got %v", body["storage"])
+		}
+		if body["applicationVersion"] != testVersion {
+			t.Errorf("expected applicationVersion %q, got %v", testVersion, body["applicationVersion"])
 		}
 	})
 }

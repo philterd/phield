@@ -202,7 +202,9 @@ Each breach carries a `z_score` field as well when `PHIELD_TREND_METHOD` is `z_s
 
 **Endpoint**: `GET /health`
 
-Reports `200 OK` when Phield can reach its storage, so a load balancer stops sending an instance counts it cannot persist. When MongoDB is not configured the data is held in this process, so there is nothing to reach and the check always succeeds.
+Reports `200 OK` and a `status` of `UP` when Phield can reach its storage, so a load balancer stops sending an instance counts it cannot persist. When MongoDB is not configured the data is held in this process, so there is nothing to reach and the check always succeeds.
+
+`applicationVersion` is the release the running binary was built from, which is the same value `phield -version` prints.
 
 **Example Request**:
 
@@ -214,15 +216,17 @@ curl -k https://localhost:8443/health
 
 ```json
 {
-  "status": "ok"
+  "status": "UP",
+  "applicationVersion": "1.0.0"
 }
 ```
 
-When the storage cannot be reached, the response is `503 Service Unavailable`:
+When the storage cannot be reached, the response is `503 Service Unavailable` with a `status` other than `UP`:
 
 ```json
 {
-  "status": "unavailable",
+  "status": "DOWN",
+  "applicationVersion": "1.0.0",
   "storage": "unreachable"
 }
 ```

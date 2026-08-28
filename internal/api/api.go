@@ -36,6 +36,7 @@ import (
 
 type API struct {
 	storage        db.Storage
+	version        string
 	alertThreshold float64
 	trendMethod    string
 	windowSize     int
@@ -45,9 +46,12 @@ type API struct {
 	notifier       notifier.Notifier
 }
 
-func NewAPI(storage db.Storage, alertThreshold float64, trendMethod string, windowSize int, sensitivity float64, warmUpCount int, cooldownMins int, n notifier.Notifier) *API {
+// NewAPI builds the API. version is the release the binary was built from and
+// is reported by the health endpoint.
+func NewAPI(storage db.Storage, version string, alertThreshold float64, trendMethod string, windowSize int, sensitivity float64, warmUpCount int, cooldownMins int, n notifier.Notifier) *API {
 	return &API{
 		storage:        storage,
+		version:        version,
 		alertThreshold: alertThreshold,
 		trendMethod:    trendMethod,
 		windowSize:     windowSize,
@@ -180,6 +184,9 @@ func (a *API) handleMute(c *gin.Context) {
 // health endpoint open.
 const healthCheckTimeout = 2 * time.Second
 
+// handleHealth answers the health contract shared across Philterd products:
+// JSON carrying at least a status and an applicationVersion, with "UP" and 200
+// only when the instance is healthy.
 func (a *API) handleHealth(c *gin.Context) {
 	// Reports unhealthy when the storage cannot be reached, so a load balancer
 	// stops sending an instance counts it cannot persist. With in-memory
@@ -189,11 +196,11 @@ func (a *API) handleHealth(c *gin.Context) {
 
 	if err := a.storage.Ping(ctx); err != nil {
 		log.Printf("Health check failed: %v", err)
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unavailable", "storage": "unreachable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "DOWN", "applicationVersion": a.version, "storage": "unreachable"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	c.JSON(http.StatusOK, gin.H{"status": "UP", "applicationVersion": a.version})
 }
 
 func (a *API) handleIngest(c *gin.Context) {

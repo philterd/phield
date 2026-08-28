@@ -212,7 +212,7 @@ func TestDashboardIsNotBehindTheAPIKey(t *testing.T) {
 
 	// Wired the way main.go wires it: the API is authenticated, the dashboard is not.
 	r := gin.New()
-	a := api.NewAPI(storage, 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
+	a := api.NewAPI(storage, "1.0.0", 0.2, "percentage_delta", 24, 3.0, 20, 60, nil)
 	a.RegisterRoutes(r, auth.BearerToken("s3cret"))
 	New(storage, false).RegisterRoutes(r)
 

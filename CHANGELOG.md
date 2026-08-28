@@ -42,6 +42,6 @@ Initial release.
 
 - Optional API key authentication through `PHIELD_API_KEY`, required on `/ingest`, `/mute`, and `/replay`. The reads that stay open return aggregate counts and contain no PII.
 - HTTPS with a certificate that the container generates on start, so each container has its own rather than one shared by every image pull. A mounted certificate is used as-is.
-- Prometheus metrics at `/metrics` and a liveness check at `/health`.
+- Prometheus metrics at `/metrics` and a health check at `/health` reporting `status` and `applicationVersion`.
 - Graceful shutdown on `SIGINT` and `SIGTERM`.
 - Configuration entirely through environment variables. See the [configuration reference](https://philterd.github.io/phield/configuration/).

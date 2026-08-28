@@ -65,7 +65,8 @@ echo "Smoke testing $PHIELD_URL as $SOURCE_ID"
 echo
 echo "Health"
 health=$($CURL "$PHIELD_URL/health")
-contains "health reports ok" '"status":"ok"' "$health"
+contains "health reports UP" '"status":"UP"' "$health"
+contains "health reports a version" '"applicationVersion"' "$health"
 
 echo
 echo "Ingest"
