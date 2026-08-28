@@ -1,0 +1,1149 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="User guide for Phield, the PII drift and trend monitor.">
+      
+      
+        <meta name="author" content="philterd">
+      
+      
+        <link rel="canonical" href="https://philterd.github.io/phield/dashboard/">
+      
+      
+        <link rel="prev" href="../api/">
+      
+      
+        <link rel="next" href="../kafka/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Dashboard - Phield</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="red" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#dashboard" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Phield" class="md-header__button md-logo" aria-label="Phield" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Phield
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Dashboard
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/philterd/phield" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Phield" class="md-nav__button md-logo" aria-label="Phield" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Phield
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/philterd/phield" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#accessing-the-dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Accessing the Dashboard
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#summary-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary Metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pii-entity-type-breakdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PII Entity Type Breakdown
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#volume-over-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Volume Over Time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#baseline-vs-current-traffic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Baseline vs. Current Traffic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pii-flows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PII Flows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alert-timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alert Timeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#time-range" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Time Range
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dashboard-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dashboard API
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dashboard API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-apidashboardsummary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/dashboard/summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apidashboardalerts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/dashboard/alerts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apidashboardentities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/dashboard/entities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apidashboardflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/dashboard/flows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apidashboardtrends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/dashboard/trends
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kafka/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kafka Ingestion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../trend_methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trend Methods
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notifications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#accessing-the-dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Accessing the Dashboard
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#summary-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary Metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pii-entity-type-breakdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PII Entity Type Breakdown
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#volume-over-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Volume Over Time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#baseline-vs-current-traffic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Baseline vs. Current Traffic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pii-flows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PII Flows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alert-timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alert Timeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#time-range" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Time Range
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dashboard-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dashboard API
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dashboard API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-apidashboardsummary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/dashboard/summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apidashboardalerts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/dashboard/alerts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apidashboardentities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/dashboard/entities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apidashboardflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/dashboard/flows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apidashboardtrends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/dashboard/trends
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="dashboard">Dashboard</h1>
+<p>Phield includes a built-in web dashboard that provides real-time visibility into PII flows and alerts without requiring external tooling like Grafana or Splunk.</p>
+<h2 id="accessing-the-dashboard">Accessing the Dashboard</h2>
+<p>The dashboard is available at:</p>
+<pre><code>http://localhost:8080/dashboard
+</code></pre>
+<p>Replace the host and port with your configured values (e.g., <code>https://localhost:8443/dashboard</code> when using TLS in Docker). A request to the root (<code>http://localhost:8080/</code>) redirects to the dashboard.</p>
+<p>When Phield runs without MongoDB, the dashboard shows a banner saying that counts, baselines, and alerts are held in memory and are lost on restart. Set <code>PHIELD_MONGO_URI</code> to store them. See <a href="../configuration/">Configuration</a>.</p>
+<p>The dashboard is not covered by <code>PHIELD_API_KEY</code>. That key keeps bad data out of Phield, and the dashboard only reads aggregate counts, which contain no PII. Restrict access at the network level, or set <code>PHIELD_DASHBOARD_ENABLED=false</code>, if the dashboard should not be reachable. See <a href="../api/#authentication">Authentication</a>.</p>
+<h2 id="features">Features</h2>
+<h3 id="summary-metrics">Summary Metrics</h3>
+<p>The top row displays key metrics for the selected time window:</p>
+<ul>
+<li><strong>Data Points</strong> — total number of ingested PII count entries.</li>
+<li><strong>Alerts</strong> — total number of trend breach alerts fired.</li>
+<li><strong>Sources</strong> — number of unique source IDs reporting data.</li>
+<li><strong>PII Types</strong> — number of distinct PII entity types observed.</li>
+<li><strong>Contexts</strong> — number of unique application contexts.</li>
+</ul>
+<h3 id="pii-entity-type-breakdown">PII Entity Type Breakdown</h3>
+<p>A doughnut chart showing the relative volume of each PII type (e.g., email, SSN, credit-card) across all sources in the time window.</p>
+<h3 id="volume-over-time">Volume Over Time</h3>
+<p>A line chart showing PII counts over time, broken down by entity type. The time buckets adjust automatically based on the selected window:</p>
+<ul>
+<li>1–6 hours: 15-minute buckets</li>
+<li>6–24 hours: 1-hour buckets</li>
+<li>24–168 hours: 4-hour buckets</li>
+</ul>
+<h3 id="baseline-vs-current-traffic">Baseline vs. Current Traffic</h3>
+<p>A table comparing the rolling baseline mean (from Welford's algorithm) against the recent mean for each source/context/PII type combination. The deviation percentage indicates whether current traffic is above or below the established baseline.</p>
+<h3 id="pii-flows">PII Flows</h3>
+<p>Shows the relationships between data sources and application contexts, including which PII types are flowing through each path and the total volume.</p>
+<h3 id="alert-timeline">Alert Timeline</h3>
+<p>A chronological list of triggered breach alerts showing timestamp, PII type, source, context, count, and z-score (when using the z_score trend method).</p>
+<h2 id="time-range">Time Range</h2>
+<p>Use the dropdown in the header to select the time window:</p>
+<ul>
+<li>Last 1 hour</li>
+<li>Last 6 hours</li>
+<li>Last 24 hours (default)</li>
+<li>Last 3 days</li>
+<li>Last 7 days</li>
+</ul>
+<p>The dashboard auto-refreshes every 30 seconds.</p>
+<h2 id="configuration">Configuration</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PHIELD_DASHBOARD_ENABLED</code></td>
+<td><code>true</code></td>
+<td>Set to <code>false</code> to disable the dashboard and its API endpoints.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="dashboard-api">Dashboard API</h2>
+<p>The dashboard UI is backed by JSON API endpoints that can be consumed programmatically for custom integrations or external dashboards.</p>
+<p>All endpoints accept an optional <code>hours</code> query parameter (default: <code>24</code>, max: <code>168</code>).</p>
+<p>These endpoints are not covered by <code>PHIELD_API_KEY</code>. See <a href="../api/#authentication">Authentication</a>.</p>
+<h3 id="get-apidashboardsummary">GET /api/dashboard/summary</h3>
+<p>Returns aggregate statistics for the time window.</p>
+<p><strong>Example Response</strong>:</p>
+<pre><code class="language-json">{
+  &quot;total_entries&quot;: 1250,
+  &quot;total_breaches&quot;: 3,
+  &quot;unique_sources&quot;: 5,
+  &quot;unique_types&quot;: 4,
+  &quot;unique_contexts&quot;: 2,
+  &quot;window_hours&quot;: 24
+}
+</code></pre>
+<h3 id="get-apidashboardalerts">GET /api/dashboard/alerts</h3>
+<p>Returns breach/alert events in reverse chronological order.</p>
+<p><strong>Example Response</strong>:</p>
+<pre><code class="language-json">{
+  &quot;alerts&quot;: [
+    {
+      &quot;timestamp&quot;: &quot;2026-05-25T14:30:00Z&quot;,
+      &quot;pii_type&quot;: &quot;credit-card&quot;,
+      &quot;context&quot;: &quot;production&quot;,
+      &quot;organization&quot;: &quot;acme&quot;,
+      &quot;source_id&quot;: &quot;app-server-1&quot;,
+      &quot;count&quot;: 150,
+      &quot;average&quot;: 42.5,
+      &quot;z_score&quot;: 4.2
+    }
+  ],
+  &quot;window_hours&quot;: 24
+}
+</code></pre>
+<h3 id="get-apidashboardentities">GET /api/dashboard/entities</h3>
+<p>Returns PII type totals and a time-bucketed timeline for charting.</p>
+<p><strong>Example Response</strong>:</p>
+<pre><code class="language-json">{
+  &quot;totals&quot;: {
+    &quot;email&quot;: 5200,
+    &quot;ssn&quot;: 340,
+    &quot;credit-card&quot;: 1800
+  },
+  &quot;timeline&quot;: {
+    &quot;email&quot;: [
+      {&quot;time&quot;: &quot;2026-05-25T10:00:00Z&quot;, &quot;count&quot;: 420},
+      {&quot;time&quot;: &quot;2026-05-25T11:00:00Z&quot;, &quot;count&quot;: 380}
+    ]
+  },
+  &quot;window_hours&quot;: 24
+}
+</code></pre>
+<h3 id="get-apidashboardflows">GET /api/dashboard/flows</h3>
+<p>Returns source-to-context flow data with PII type breakdown and total volume.</p>
+<p><strong>Example Response</strong>:</p>
+<pre><code class="language-json">{
+  &quot;flows&quot;: [
+    {
+      &quot;source&quot;: &quot;app-server-1&quot;,
+      &quot;context&quot;: &quot;production&quot;,
+      &quot;types&quot;: {&quot;email&quot;: 2400, &quot;credit-card&quot;: 900},
+      &quot;total&quot;: 3300
+    }
+  ],
+  &quot;window_hours&quot;: 24
+}
+</code></pre>
+<h3 id="get-apidashboardtrends">GET /api/dashboard/trends</h3>
+<p>Returns baseline vs. recent mean comparison for each tracked source/context/PII type.</p>
+<p><strong>Example Response</strong>:</p>
+<pre><code class="language-json">{
+  &quot;trends&quot;: [
+    {
+      &quot;source_id&quot;: &quot;app-server-1&quot;,
+      &quot;context&quot;: &quot;production&quot;,
+      &quot;pii_type&quot;: &quot;email&quot;,
+      &quot;baseline_mean&quot;: 40.5,
+      &quot;recent_mean&quot;: 48.2,
+      &quot;sample_count&quot;: 250,
+      &quot;deviation_pct&quot;: 19.0
+    }
+  ],
+  &quot;window_hours&quot;: 24
+}
+</code></pre>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright 2026 Philterd, LLC
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
