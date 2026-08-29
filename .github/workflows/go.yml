@@ -71,7 +71,7 @@ jobs:
     - uses: docker/setup-buildx-action@v3
 
     - name: Build image for every published platform
-      uses: docker/build-push-action@v6
+      uses: docker/build-push-action@v7
       with:
         context: .
         platforms: linux/amd64,linux/arm64
@@ -82,7 +82,7 @@ jobs:
     # A multi-platform image cannot be loaded, so load the runner's own platform
     # from the cache to test with.
     - name: Load the amd64 image
-      uses: docker/build-push-action@v6
+      uses: docker/build-push-action@v7
       with:
         context: .
         platforms: linux/amd64
