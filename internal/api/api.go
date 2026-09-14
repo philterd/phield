@@ -335,13 +335,24 @@ func lockSeries(sourceID string, organization string, contextName string, piiTyp
 	return lock.Unlock
 }
 
+// suppression says why a breach is not being announced. The reasons differ in
+// what they still do: a cooldown means the series already alerted recently and
+// that breach is on record, while a mute silences the notification only.
+type suppression int
+
+const (
+	suppressNone suppression = iota
+	suppressCooldown
+	suppressMute
+)
+
 // trendOutcome is the result of one pass over a series: the stats to store and
 // whatever should be reported once they are stored.
 type trendOutcome struct {
 	stats      models.Stats
 	message    string
 	breached   bool
-	suppressed bool
+	suppressed suppression
 	breach     models.BreachDetail
 }
 
@@ -352,9 +363,9 @@ func (a *API) analyzeTrend(ctx context.Context, sourceID string, organization st
 		// alert is a better failure than a missed one.
 		log.Printf("Error checking mute status: %v", err)
 	}
-	if muted {
-		return
-	}
+	// A mute suppresses alerting, not learning. The counts that arrive during
+	// one still update the baseline, so it is current when the mute ends rather
+	// than frozen at the moment it began.
 
 	unlock := lockSeries(sourceID, organization, contextName, piiType)
 	defer unlock()
@@ -365,7 +376,7 @@ func (a *API) analyzeTrend(ctx context.Context, sourceID string, organization st
 	// against the current ones. Reporting waits until the write lands so a retry
 	// cannot alert twice.
 	for attempt := 1; attempt <= maxStatsAttempts; attempt++ {
-		outcome, err := a.evaluateTrend(ctx, sourceID, organization, contextName, piiType, currentCount)
+		outcome, err := a.evaluateTrend(ctx, sourceID, organization, contextName, piiType, currentCount, muted)
 		if err != nil {
 			// Analyzing against a baseline we could not read would replace it
 			// with one built from this single count, so stop here instead.
@@ -396,7 +407,7 @@ func (a *API) analyzeTrend(ctx context.Context, sourceID string, organization st
 
 // evaluateTrend reads the current stats for a series and works out what this
 // count does to them. It changes nothing.
-func (a *API) evaluateTrend(ctx context.Context, sourceID string, organization string, contextName string, piiType string, currentCount int) (trendOutcome, error) {
+func (a *API) evaluateTrend(ctx context.Context, sourceID string, organization string, contextName string, piiType string, currentCount int, muted bool) (trendOutcome, error) {
 	stats, err := a.storage.GetStats(ctx, sourceID, organization, contextName, piiType)
 	if err != nil {
 		return trendOutcome{}, fmt.Errorf("reading stats: %w", err)
@@ -409,6 +420,7 @@ func (a *API) evaluateTrend(ctx context.Context, sourceID string, organization s
 	}
 
 	lastAlertTime := stats.LastAlertTime
+	lastAlertMuted := stats.LastAlertMuted
 	consecutiveNormal := stats.ConsecutiveNormal
 
 	var breached bool
@@ -461,6 +473,7 @@ func (a *API) evaluateTrend(ctx context.Context, sourceID string, organization s
 		consecutiveNormal++
 		if consecutiveNormal >= 3 {
 			lastAlertTime = time.Time{}
+			lastAlertMuted = false
 		}
 	} else if !breached {
 		consecutiveNormal = 0
@@ -470,22 +483,48 @@ func (a *API) evaluateTrend(ctx context.Context, sourceID string, organization s
 
 	if breached {
 		consecutiveNormal = 0
+
 		cooldown := time.Duration(a.cooldownMins) * time.Minute
-		if !lastAlertTime.IsZero() && time.Since(lastAlertTime) < cooldown {
-			outcome.suppressed = true
+		inCooldown := !lastAlertTime.IsZero() && time.Since(lastAlertTime) < cooldown
+
+		// A cooldown begun by a muted breach was never announced to anyone, so
+		// it must not silence the first alert after the mute ends.
+		if inCooldown && lastAlertMuted && !muted {
+			inCooldown = false
+		}
+
+		breach := models.BreachDetail{
+			PIIType:  piiType,
+			Context:  contextName,
+			Org:      organization,
+			SourceID: sourceID,
+			Count:    currentCount,
+			Average:  tracker.Mean,
+			ZScore:   val,
+		}
+
+		switch {
+		case inCooldown:
+			outcome.suppressed = suppressCooldown
 			outcome.message = fmt.Sprintf("[SUPPRESSED] Alert for %s/%s/%s suppressed due to cooldown (last alert: %v)", sourceID, piiType, contextName, lastAlertTime)
-		} else {
+
+		case muted:
+			// The mute silences the notification. The breach is still recorded,
+			// so an operator can see afterward what happened while the context
+			// was quiet, and it starts a cooldown so a sustained breach is not
+			// written once per count for the length of the mute.
 			lastAlertTime = time.Now()
-			outcome.breach = models.BreachDetail{
-				Timestamp: lastAlertTime,
-				PIIType:   piiType,
-				Context:   contextName,
-				Org:       organization,
-				SourceID:  sourceID,
-				Count:     currentCount,
-				Average:   tracker.Mean,
-				ZScore:    val,
-			}
+			lastAlertMuted = true
+			outcome.suppressed = suppressMute
+			outcome.message = fmt.Sprintf("[MUTED] %s", msg)
+			breach.Timestamp = lastAlertTime
+			outcome.breach = breach
+
+		default:
+			lastAlertTime = time.Now()
+			lastAlertMuted = false
+			breach.Timestamp = lastAlertTime
+			outcome.breach = breach
 		}
 	}
 
@@ -494,6 +533,7 @@ func (a *API) evaluateTrend(ctx context.Context, sourceID string, organization s
 		Mean:              tracker.Mean,
 		M2:                tracker.M2,
 		LastAlertTime:     lastAlertTime,
+		LastAlertMuted:    lastAlertMuted,
 		ConsecutiveNormal: consecutiveNormal,
 		Version:           stats.Version,
 	}
@@ -508,22 +548,36 @@ func (a *API) reportTrend(ctx context.Context, outcome trendOutcome) {
 		return
 	}
 
-	if outcome.suppressed {
+	// A cooldown means the series alerted recently and that breach is already
+	// on record, so this one is neither announced nor recorded.
+	if outcome.suppressed == suppressCooldown {
 		log.Print(outcome.message)
+		return
+	}
+
+	// A mute silences the notification only. The breach is recorded so the
+	// dashboard timeline shows what happened while the context was quiet.
+	if outcome.suppressed == suppressMute {
+		log.Print(outcome.message)
+		a.saveBreach(ctx, outcome.breach)
 		return
 	}
 
 	fmt.Println(outcome.message)
 	log.Print(outcome.message)
 
-	if err := a.storage.SaveBreach(ctx, outcome.breach); err != nil {
-		log.Printf("Error saving breach: %v", err)
-	}
+	a.saveBreach(ctx, outcome.breach)
 
 	if a.notifier != nil {
 		if err := a.notifier.Notify(ctx, outcome.message); err != nil {
 			log.Printf("Error sending notification: %v", err)
 		}
+	}
+}
+
+func (a *API) saveBreach(ctx context.Context, breach models.BreachDetail) {
+	if err := a.storage.SaveBreach(ctx, breach); err != nil {
+		log.Printf("Error saving breach: %v", err)
 	}
 }
 

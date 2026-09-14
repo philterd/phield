@@ -22,11 +22,11 @@ The dashboard is not covered by `PHIELD_API_KEY`. That key keeps bad data out of
 
 The top row displays key metrics for the selected time window:
 
-- **Data Points** — total number of ingested PII count entries.
-- **Alerts** — total number of trend breach alerts fired.
-- **Sources** — number of unique source IDs reporting data.
-- **PII Types** — number of distinct PII entity types observed.
-- **Contexts** — number of unique application contexts.
+- **Data Points**: total number of ingested PII count entries.
+- **Alerts**: total number of trend breaches recorded.
+- **Sources**: number of unique source IDs reporting data.
+- **PII Types**: number of distinct PII entity types observed.
+- **Contexts**: number of unique application contexts.
 
 ### PII Entity Type Breakdown
 
@@ -50,7 +50,7 @@ Shows the relationships between data sources and application contexts, including
 
 ### Alert Timeline
 
-A chronological list of triggered breach alerts showing timestamp, PII type, source, context, count, and z-score (when using the z_score trend method).
+A chronological list of recorded breaches showing timestamp, PII type, source, context, count, and z-score (when using the z_score trend method). A breach detected while its context was [muted](api.md#mute-context-alerts) appears here too, although no notification was sent for it.
 
 ## Time Range
 

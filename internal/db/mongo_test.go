@@ -295,7 +295,7 @@ func TestMongoStats(t *testing.T) {
 	})
 
 	alertTime := time.Now().Add(-30 * time.Minute).UTC().Truncate(time.Millisecond)
-	saved := models.Stats{Count: 5, Mean: 12.5, M2: 7.25, LastAlertTime: alertTime, ConsecutiveNormal: 2}
+	saved := models.Stats{Count: 5, Mean: 12.5, M2: 7.25, LastAlertTime: alertTime, LastAlertMuted: true, ConsecutiveNormal: 2}
 
 	t.Run("stats round trip", func(t *testing.T) {
 		if err := m.SaveStats(ctx, "source-1", "org-1", "default", "ssn", saved); err != nil {
@@ -314,6 +314,11 @@ func TestMongoStats(t *testing.T) {
 		}
 		if !got.LastAlertTime.Equal(alertTime) {
 			t.Errorf("expected LastAlertTime %v, got %v", alertTime, got.LastAlertTime)
+		}
+		// The cooldown a muted breach starts must survive a round trip, or the
+		// first alert after the mute ends is silenced by it.
+		if !got.LastAlertMuted {
+			t.Error("expected LastAlertMuted to round trip")
 		}
 	})
 

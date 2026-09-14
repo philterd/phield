@@ -281,6 +281,13 @@ phield_ingest_latency_average_seconds_24h 0.004521
 
 Disables trend breach alerts for a specific context for a given number of minutes. Alerts are grouped by both `organization` and `context`.
 
+A mute suppresses alerting only. It does not affect what Phield learns:
+
+- The counts that arrive during a mute update the baseline as usual, so the baseline is current when the mute ends rather than frozen at the moment it began. A context muted through a migration that raises steady-state volume does not alert on that new volume afterward.
+- The z-score warm-up counter and the back-to-normal reset advance during a mute as well, so detection is ready as soon as the mute ends.
+- A breach detected during a mute is recorded and appears in the [dashboard](dashboard.md) alert timeline, so an operator can see afterward what happened while the context was quiet. No Slack or PagerDuty notification is sent, and the log line is marked `[MUTED]`.
+- A recorded muted breach starts the usual cooldown, so a sustained breach is recorded once per cooldown rather than once per count. That cooldown does not silence the first alert after the mute ends, because the breach that started it reached nobody.
+
 **Payload**:
 
 | Field | Type | Description |

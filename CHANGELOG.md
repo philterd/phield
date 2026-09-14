@@ -19,7 +19,7 @@ Initial release.
 - Two detection methods: `percentage_delta`, which alerts on a fractional increase over the moving average, and `z_score`, which alerts on statistical significance.
 - The `z_score` baseline is maintained with Welford's algorithm, so each series learns its own normal volatility, and alerts are held back until a warm-up period has passed.
 - Alert cooldown suppresses repeat alerts for a series, and the cooldown resets after a run of normal counts.
-- `POST /mute` suppresses alerts for a context for a set number of minutes.
+- `POST /mute` suppresses alerts for a context for a set number of minutes. Muting affects alerting only: baselines, the warm-up counter, and the back-to-normal reset all keep advancing, and a breach detected during a mute is recorded without being notified.
 - `POST /replay` re-runs detection over historical counts with a test threshold, reporting what would have alerted without sending notifications, recording breaches, or changing stored baselines. Under `z_score`, replay maintains each series' statistics incrementally, so replaying a long history costs time proportional to its length rather than to its square.
 
 ### Storage
