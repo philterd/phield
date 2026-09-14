@@ -68,7 +68,7 @@ jobs:
     # arm64. The Go build itself cross-compiles and does not.
     - uses: docker/setup-qemu-action@v3
 
-    - uses: docker/setup-buildx-action@v3
+    - uses: docker/setup-buildx-action@v4
 
     - name: Build image for every published platform
       uses: docker/build-push-action@v6
