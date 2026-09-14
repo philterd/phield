@@ -55,6 +55,23 @@ type Config struct {
 
 	// MaxRequestBytes bounds the size of a request body.
 	MaxRequestBytes int64
+
+	// MaxReplayHours bounds the time range a single replay may scan. It is a
+	// backstop against a runaway range rather than a bound on the work: the
+	// cost of a replay follows how many counts fall in the range, not how wide
+	// it is. Zero or less lifts the limit.
+	MaxReplayHours int
+
+	// MaxReplayBreachDetails bounds how many breaches a replay returns in
+	// full. The total detected is reported either way. Zero or less lifts the
+	// limit.
+	MaxReplayBreachDetails int
+
+	// MaxConcurrentReplays bounds how many replays may run at once. A replay
+	// scans every source and organization in its range, so concurrent replays
+	// duplicate work rather than serving independent callers. Zero or less
+	// lifts the limit.
+	MaxConcurrentReplays int
 }
 
 func Load() *Config {
@@ -85,6 +102,10 @@ func Load() *Config {
 		IdleTimeout:  time.Duration(getEnvAsInt("PHIELD_IDLE_TIMEOUT_SECONDS", 60)) * time.Second,
 
 		MaxRequestBytes: int64(getEnvAsInt("PHIELD_MAX_REQUEST_BYTES", 1048576)),
+
+		MaxReplayHours:         getEnvAsInt("PHIELD_MAX_REPLAY_HOURS", 2160), // 90 days
+		MaxReplayBreachDetails: getEnvAsInt("PHIELD_MAX_REPLAY_BREACH_DETAILS", 1000),
+		MaxConcurrentReplays:   getEnvAsInt("PHIELD_MAX_CONCURRENT_REPLAYS", 1),
 	}
 }
 

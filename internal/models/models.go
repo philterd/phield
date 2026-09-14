@@ -108,6 +108,10 @@ type ReplayResponse struct {
 	TotalPointsProcessed    int            `json:"total_points_processed"`
 	VirtualBreachesDetected int            `json:"virtual_breaches_detected"`
 	BreachDetails           []BreachDetail `json:"breach_details"`
+	// BreachDetailsTruncated reports that more breaches were detected than
+	// BreachDetails holds, so a short list is not mistaken for a complete one.
+	// VirtualBreachesDetected is the total either way.
+	BreachDetailsTruncated bool `json:"breach_details_truncated"`
 }
 
 type Mute struct {

@@ -103,6 +103,11 @@ func main() {
 	r.Use(api.LimitRequestBody(cfg.MaxRequestBytes))
 
 	a := api.NewAPI(storage, version, cfg.AlertThreshold, cfg.TrendMethod, cfg.WindowSize, cfg.Sensitivity, cfg.WarmUpCount, cfg.CooldownMinutes, n)
+	a.SetReplayLimits(api.ReplayLimits{
+		MaxWindow:        time.Duration(cfg.MaxReplayHours) * time.Hour,
+		MaxBreachDetails: cfg.MaxReplayBreachDetails,
+		MaxConcurrent:    cfg.MaxConcurrentReplays,
+	})
 	a.RegisterRoutes(r, authMiddleware)
 
 	if cfg.DashboardEnabled {

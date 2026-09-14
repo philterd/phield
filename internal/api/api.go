@@ -44,6 +44,35 @@ type API struct {
 	warmUpCount    int
 	cooldownMins   int
 	notifier       notifier.Notifier
+
+	// replayLimits and replaySem bound replay. They are set at startup, before
+	// the server serves, and not changed after.
+	replayLimits ReplayLimits
+	replaySem    chan struct{}
+}
+
+// ReplayLimits bound what a single replay may do. A zero or negative value in
+// any field lifts that limit.
+type ReplayLimits struct {
+	// MaxWindow is the widest time range a replay may scan. It guards against
+	// a runaway range rather than bounding the work, which follows how many
+	// counts fall in the range.
+	MaxWindow time.Duration
+
+	// MaxBreachDetails is how many breaches are returned in full. The total
+	// detected is reported either way.
+	MaxBreachDetails int
+
+	// MaxConcurrent is how many replays may run at once.
+	MaxConcurrent int
+}
+
+// DefaultReplayLimits apply to an API that sets none, so a replay is never
+// unbounded by omission. config.Load carries what a deployment actually uses.
+var DefaultReplayLimits = ReplayLimits{
+	MaxWindow:        2160 * time.Hour, // 90 days
+	MaxBreachDetails: 1000,
+	MaxConcurrent:    1,
 }
 
 // NewAPI builds the API. version is the release the binary was built from and
@@ -59,7 +88,25 @@ func NewAPI(storage db.Storage, version string, alertThreshold float64, trendMet
 		warmUpCount:    warmUpCount,
 		cooldownMins:   cooldownMins,
 		notifier:       n,
+		replayLimits:   DefaultReplayLimits,
+		replaySem:      newReplaySemaphore(DefaultReplayLimits.MaxConcurrent),
 	}
+}
+
+// SetReplayLimits replaces the limits replay is held to. Call it before the
+// server starts serving.
+func (a *API) SetReplayLimits(limits ReplayLimits) {
+	a.replayLimits = limits
+	a.replaySem = newReplaySemaphore(limits.MaxConcurrent)
+}
+
+// newReplaySemaphore returns a semaphore admitting maxConcurrent holders, or
+// nil when the limit is lifted.
+func newReplaySemaphore(maxConcurrent int) chan struct{} {
+	if maxConcurrent <= 0 {
+		return nil
+	}
+	return make(chan struct{}, maxConcurrent)
 }
 
 // LimitRequestBody returns middleware that refuses a request body larger than
@@ -491,9 +538,37 @@ func (a *API) handleReplay(c *gin.Context) {
 		return
 	}
 
+	// An inverted range scans nothing and would return an empty result, which
+	// a caller who transposed the fields reads as "no breaches".
+	if req.EndTime.Before(req.StartTime) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "end_time must not precede start_time"})
+		return
+	}
+
+	if maxWindow := a.replayLimits.MaxWindow; maxWindow > 0 && req.EndTime.Sub(req.StartTime) > maxWindow {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("replay window must not exceed %d hours", int(maxWindow.Hours())),
+		})
+		return
+	}
+
 	if req.TestThreshold <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "test_threshold must be greater than 0"})
 		return
+	}
+
+	// A replay holds its connection while it scans. Rejecting rather than
+	// queueing means a client that retries on timeout cannot stack work.
+	if a.replaySem != nil {
+		select {
+		case a.replaySem <- struct{}{}:
+			defer func() { <-a.replaySem }()
+		default:
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": fmt.Sprintf("too many concurrent replays; at most %d may run at once", a.replayLimits.MaxConcurrent),
+			})
+			return
+		}
 	}
 
 	resp, err := a.RunReplay(c.Request.Context(), req)
@@ -513,6 +588,11 @@ type simEntry struct {
 func (a *API) RunReplay(ctx context.Context, req models.ReplayRequest) (models.ReplayResponse, error) {
 	entryChan, errChan := a.storage.GetEntries(ctx, req.StartTime, req.EndTime)
 
+	// The z-score method needs only a series' running statistics, which
+	// Welford's algorithm maintains one point at a time, so it keeps a tracker
+	// rather than the points. The percentage-delta method compares against the
+	// counts in its lookback window, so it keeps those.
+	trackers := make(map[string]*trend.StatTracker)
 	history := make(map[string][]simEntry)
 
 	resp := models.ReplayResponse{
@@ -549,19 +629,20 @@ func (a *API) RunReplay(ctx context.Context, req models.ReplayRequest) (models.R
 				var avg float64
 
 				if a.trendMethod == trend.MethodZScore {
-					currentStats := history[key]
-					tracker := trend.StatTracker{}
-					for _, h := range currentStats {
-						tracker.Update(float64(h.count))
+					tracker := trackers[key]
+					if tracker == nil {
+						tracker = &trend.StatTracker{}
+						trackers[key] = tracker
 					}
 
+					// The tracker holds every earlier point in the series, so
+					// it is read before this point is added to it.
 					if tracker.Count >= a.warmUpCount {
 						val, breached = trend.CalculateBreach(a.trendMethod, currentCount, tracker.Mean, req.TestThreshold, tracker.StdDev())
 					}
 					avg = tracker.Mean
 
-					// Update history for next point
-					history[key] = append(history[key], simEntry{timestamp: entry.Timestamp, count: currentCount})
+					tracker.Update(float64(currentCount))
 				} else {
 					lookback := entry.Timestamp.Add(-time.Duration(a.windowSize) * time.Hour)
 
@@ -588,6 +669,13 @@ func (a *API) RunReplay(ctx context.Context, req models.ReplayRequest) (models.R
 
 				if breached {
 					resp.VirtualBreachesDetected++
+
+					maxDetails := a.replayLimits.MaxBreachDetails
+					if maxDetails > 0 && len(resp.BreachDetails) >= maxDetails {
+						resp.BreachDetailsTruncated = true
+						continue
+					}
+
 					detail := models.BreachDetail{
 						Timestamp: entry.Timestamp,
 						PIIType:   piiType,
