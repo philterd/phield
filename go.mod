@@ -5,7 +5,7 @@ go 1.26.6
 require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/segmentio/kafka-go v0.4.51
-	go.mongodb.org/mongo-driver/v2 v2.5.0
+	go.mongodb.org/mongo-driver/v2 v2.8.2
 )
 
 require (
