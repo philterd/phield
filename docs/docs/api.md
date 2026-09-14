@@ -145,6 +145,22 @@ Re-runs trend detection over historical counts with a different threshold or sen
 | `test_threshold` | float | **Required**. The threshold or sensitivity to test, in place of `PHIELD_ALERT_THRESHOLD` or `PHIELD_SENSITIVITY`. For `percentage_delta`, this is the fractional increase (0.2 for 20%). For `z_score`, this is the sensitivity (number of standard deviations). |
 | `pii_types` | array | Optional. A list of PII types to include in the replay. If omitted, all types are processed. |
 
+### Limits
+
+A replay scans every count in its window, and its cost follows how many counts fall in that window rather than how wide the window is. Three limits bound it.
+
+| Limit | Variable | Default | Behavior when exceeded |
+|-------|----------|---------|------------------------|
+| Replay window | `PHIELD_MAX_REPLAY_HOURS` | `2160` (90 days) | `400 Bad Request`, naming the limit |
+| Breaches returned in full | `PHIELD_MAX_REPLAY_BREACH_DETAILS` | `1000` | `breach_details` is capped and `breach_details_truncated` is `true` |
+| Concurrent replays | `PHIELD_MAX_CONCURRENT_REPLAYS` | `1` | `429 Too Many Requests` |
+
+Set any of them to `0` to lift that limit.
+
+The window limit guards against a runaway range. It is not a bound on the work: 90 days is trivial on a low-volume instance and substantial on a busy one. Size it against how many counts an instance actually holds, and raise `PHIELD_WRITE_TIMEOUT_SECONDS` if a legitimate replay is cut off before it finishes.
+
+An `end_time` that precedes `start_time` is rejected with `400 Bad Request` rather than scanning an empty range, which would otherwise report no breaches for a transposed pair of timestamps.
+
 ### Adaptive Threshold (Z-Score)
 
 When `PHIELD_TREND_METHOD` is set to `z_score`, Phield uses statistical significance to detect breaches.
@@ -182,6 +198,7 @@ curl -k -X POST https://localhost:8443/replay \
 {
   "total_points_processed": 1440,
   "virtual_breaches_detected": 2,
+  "breach_details_truncated": false,
   "breach_details": [
     {
       "timestamp": "2026-04-20T14:30:00Z",
@@ -198,11 +215,15 @@ curl -k -X POST https://localhost:8443/replay \
 
 Each breach carries a `z_score` field as well when `PHIELD_TREND_METHOD` is `z_score`.
 
+`virtual_breaches_detected` is the total detected across the window. When more breaches are detected than `PHIELD_MAX_REPLAY_BREACH_DETAILS` allows, `breach_details` holds the first of them and `breach_details_truncated` is `true`, so a short list is not read as a complete one.
+
 ## Health Check
 
 **Endpoint**: `GET /health`
 
-Reports `200 OK` when Phield can reach its storage, so a load balancer stops sending an instance counts it cannot persist. When MongoDB is not configured the data is held in this process, so there is nothing to reach and the check always succeeds.
+Reports `200 OK` and a `status` of `UP` when Phield can reach its storage, so a load balancer stops sending an instance counts it cannot persist. When MongoDB is not configured the data is held in this process, so there is nothing to reach and the check always succeeds.
+
+`applicationVersion` is the release the running binary was built from, which is the same value `phield -version` prints.
 
 **Example Request**:
 
@@ -219,11 +240,12 @@ curl -k https://localhost:8443/health
 }
 ```
 
-When the storage cannot be reached, the response is `503 Service Unavailable`:
+When the storage cannot be reached, the response is `503 Service Unavailable` with a `status` other than `UP`:
 
 ```json
 {
-  "status": "unavailable",
+  "status": "DOWN",
+  "applicationVersion": "1.0.0",
   "storage": "unreachable"
 }
 ```
@@ -258,6 +280,13 @@ phield_ingest_latency_average_seconds_24h 0.004521
 **Endpoint**: `POST /mute`
 
 Disables trend breach alerts for a specific context for a given number of minutes. Alerts are grouped by both `organization` and `context`.
+
+A mute suppresses alerting only. It does not affect what Phield learns:
+
+- The counts that arrive during a mute update the baseline as usual, so the baseline is current when the mute ends rather than frozen at the moment it began. A context muted through a migration that raises steady-state volume does not alert on that new volume afterward.
+- The z-score warm-up counter and the back-to-normal reset advance during a mute as well, so detection is ready as soon as the mute ends.
+- A breach detected during a mute is recorded and appears in the [dashboard](dashboard.md) alert timeline, so an operator can see afterward what happened while the context was quiet. No Slack or PagerDuty notification is sent, and the log line is marked `[MUTED]`.
+- A recorded muted breach starts the usual cooldown, so a sustained breach is recorded once per cooldown rather than once per count. That cooldown does not silence the first alert after the mute ends, because the breach that started it reached nobody.
 
 **Payload**:
 

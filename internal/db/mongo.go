@@ -203,6 +203,7 @@ func (m *MongoDB) SaveStats(ctx context.Context, sourceID string, organization s
 		"mean":               stats.Mean,
 		"m2":                 stats.M2,
 		"last_alert_time":    stats.LastAlertTime,
+		"last_alert_muted":   stats.LastAlertMuted,
 		"consecutive_normal": stats.ConsecutiveNormal,
 		"version":            stats.Version + 1,
 	}}

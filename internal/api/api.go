@@ -35,29 +35,78 @@ import (
 )
 
 type API struct {
-	storage            db.Storage
-	applicationVersion string
-	alertThreshold     float64
-	trendMethod        string
-	windowSize         int
-	sensitivity        float64
-	warmUpCount        int
-	cooldownMins       int
-	notifier           notifier.Notifier
+	storage        db.Storage
+	version        string
+	alertThreshold float64
+	trendMethod    string
+	windowSize     int
+	sensitivity    float64
+	warmUpCount    int
+	cooldownMins   int
+	notifier       notifier.Notifier
+
+	// replayLimits and replaySem bound replay. They are set at startup, before
+	// the server serves, and not changed after.
+	replayLimits ReplayLimits
+	replaySem    chan struct{}
 }
 
-func NewAPI(storage db.Storage, alertThreshold float64, trendMethod string, windowSize int, sensitivity float64, warmUpCount int, cooldownMins int, n notifier.Notifier, applicationVersion string) *API {
+// ReplayLimits bound what a single replay may do. A zero or negative value in
+// any field lifts that limit.
+type ReplayLimits struct {
+	// MaxWindow is the widest time range a replay may scan. It guards against
+	// a runaway range rather than bounding the work, which follows how many
+	// counts fall in the range.
+	MaxWindow time.Duration
+
+	// MaxBreachDetails is how many breaches are returned in full. The total
+	// detected is reported either way.
+	MaxBreachDetails int
+
+	// MaxConcurrent is how many replays may run at once.
+	MaxConcurrent int
+}
+
+// DefaultReplayLimits apply to an API that sets none, so a replay is never
+// unbounded by omission. config.Load carries what a deployment actually uses.
+var DefaultReplayLimits = ReplayLimits{
+	MaxWindow:        2160 * time.Hour, // 90 days
+	MaxBreachDetails: 1000,
+	MaxConcurrent:    1,
+}
+
+// NewAPI builds the API. version is the release the binary was built from and
+// is reported by the health endpoint.
+func NewAPI(storage db.Storage, version string, alertThreshold float64, trendMethod string, windowSize int, sensitivity float64, warmUpCount int, cooldownMins int, n notifier.Notifier) *API {
 	return &API{
-		storage:            storage,
-		applicationVersion: applicationVersion,
-		alertThreshold:     alertThreshold,
-		trendMethod:        trendMethod,
-		windowSize:         windowSize,
-		sensitivity:        sensitivity,
-		warmUpCount:        warmUpCount,
-		cooldownMins:       cooldownMins,
-		notifier:           n,
+		storage:        storage,
+		version:        version,
+		alertThreshold: alertThreshold,
+		trendMethod:    trendMethod,
+		windowSize:     windowSize,
+		sensitivity:    sensitivity,
+		warmUpCount:    warmUpCount,
+		cooldownMins:   cooldownMins,
+		notifier:       n,
+		replayLimits:   DefaultReplayLimits,
+		replaySem:      newReplaySemaphore(DefaultReplayLimits.MaxConcurrent),
 	}
+}
+
+// SetReplayLimits replaces the limits replay is held to. Call it before the
+// server starts serving.
+func (a *API) SetReplayLimits(limits ReplayLimits) {
+	a.replayLimits = limits
+	a.replaySem = newReplaySemaphore(limits.MaxConcurrent)
+}
+
+// newReplaySemaphore returns a semaphore admitting maxConcurrent holders, or
+// nil when the limit is lifted.
+func newReplaySemaphore(maxConcurrent int) chan struct{} {
+	if maxConcurrent <= 0 {
+		return nil
+	}
+	return make(chan struct{}, maxConcurrent)
 }
 
 // LimitRequestBody returns middleware that refuses a request body larger than
@@ -182,6 +231,9 @@ func (a *API) handleMute(c *gin.Context) {
 // health endpoint open.
 const healthCheckTimeout = 2 * time.Second
 
+// handleHealth answers the health contract shared across Philterd products:
+// JSON carrying at least a status and an applicationVersion, with "UP" and 200
+// only when the instance is healthy.
 func (a *API) handleHealth(c *gin.Context) {
 	// Reports unhealthy when the storage cannot be reached, so a load balancer
 	// stops sending an instance counts it cannot persist. With in-memory
@@ -191,11 +243,11 @@ func (a *API) handleHealth(c *gin.Context) {
 
 	if err := a.storage.Ping(ctx); err != nil {
 		log.Printf("Health check failed: %v", err)
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unavailable", "storage": "unreachable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "DOWN", "applicationVersion": a.version, "storage": "unreachable"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "UP", "applicationVersion": a.applicationVersion})
+	c.JSON(http.StatusOK, gin.H{"status": "UP", "applicationVersion": a.version})
 }
 
 func (a *API) handleIngest(c *gin.Context) {
@@ -283,13 +335,24 @@ func lockSeries(sourceID string, organization string, contextName string, piiTyp
 	return lock.Unlock
 }
 
+// suppression says why a breach is not being announced. The reasons differ in
+// what they still do: a cooldown means the series already alerted recently and
+// that breach is on record, while a mute silences the notification only.
+type suppression int
+
+const (
+	suppressNone suppression = iota
+	suppressCooldown
+	suppressMute
+)
+
 // trendOutcome is the result of one pass over a series: the stats to store and
 // whatever should be reported once they are stored.
 type trendOutcome struct {
 	stats      models.Stats
 	message    string
 	breached   bool
-	suppressed bool
+	suppressed suppression
 	breach     models.BreachDetail
 }
 
@@ -300,9 +363,9 @@ func (a *API) analyzeTrend(ctx context.Context, sourceID string, organization st
 		// alert is a better failure than a missed one.
 		log.Printf("Error checking mute status: %v", err)
 	}
-	if muted {
-		return
-	}
+	// A mute suppresses alerting, not learning. The counts that arrive during
+	// one still update the baseline, so it is current when the mute ends rather
+	// than frozen at the moment it began.
 
 	unlock := lockSeries(sourceID, organization, contextName, piiType)
 	defer unlock()
@@ -313,7 +376,7 @@ func (a *API) analyzeTrend(ctx context.Context, sourceID string, organization st
 	// against the current ones. Reporting waits until the write lands so a retry
 	// cannot alert twice.
 	for attempt := 1; attempt <= maxStatsAttempts; attempt++ {
-		outcome, err := a.evaluateTrend(ctx, sourceID, organization, contextName, piiType, currentCount)
+		outcome, err := a.evaluateTrend(ctx, sourceID, organization, contextName, piiType, currentCount, muted)
 		if err != nil {
 			// Analyzing against a baseline we could not read would replace it
 			// with one built from this single count, so stop here instead.
@@ -344,7 +407,7 @@ func (a *API) analyzeTrend(ctx context.Context, sourceID string, organization st
 
 // evaluateTrend reads the current stats for a series and works out what this
 // count does to them. It changes nothing.
-func (a *API) evaluateTrend(ctx context.Context, sourceID string, organization string, contextName string, piiType string, currentCount int) (trendOutcome, error) {
+func (a *API) evaluateTrend(ctx context.Context, sourceID string, organization string, contextName string, piiType string, currentCount int, muted bool) (trendOutcome, error) {
 	stats, err := a.storage.GetStats(ctx, sourceID, organization, contextName, piiType)
 	if err != nil {
 		return trendOutcome{}, fmt.Errorf("reading stats: %w", err)
@@ -357,6 +420,7 @@ func (a *API) evaluateTrend(ctx context.Context, sourceID string, organization s
 	}
 
 	lastAlertTime := stats.LastAlertTime
+	lastAlertMuted := stats.LastAlertMuted
 	consecutiveNormal := stats.ConsecutiveNormal
 
 	var breached bool
@@ -409,6 +473,7 @@ func (a *API) evaluateTrend(ctx context.Context, sourceID string, organization s
 		consecutiveNormal++
 		if consecutiveNormal >= 3 {
 			lastAlertTime = time.Time{}
+			lastAlertMuted = false
 		}
 	} else if !breached {
 		consecutiveNormal = 0
@@ -418,22 +483,48 @@ func (a *API) evaluateTrend(ctx context.Context, sourceID string, organization s
 
 	if breached {
 		consecutiveNormal = 0
+
 		cooldown := time.Duration(a.cooldownMins) * time.Minute
-		if !lastAlertTime.IsZero() && time.Since(lastAlertTime) < cooldown {
-			outcome.suppressed = true
+		inCooldown := !lastAlertTime.IsZero() && time.Since(lastAlertTime) < cooldown
+
+		// A cooldown begun by a muted breach was never announced to anyone, so
+		// it must not silence the first alert after the mute ends.
+		if inCooldown && lastAlertMuted && !muted {
+			inCooldown = false
+		}
+
+		breach := models.BreachDetail{
+			PIIType:  piiType,
+			Context:  contextName,
+			Org:      organization,
+			SourceID: sourceID,
+			Count:    currentCount,
+			Average:  tracker.Mean,
+			ZScore:   val,
+		}
+
+		switch {
+		case inCooldown:
+			outcome.suppressed = suppressCooldown
 			outcome.message = fmt.Sprintf("[SUPPRESSED] Alert for %s/%s/%s suppressed due to cooldown (last alert: %v)", sourceID, piiType, contextName, lastAlertTime)
-		} else {
+
+		case muted:
+			// The mute silences the notification. The breach is still recorded,
+			// so an operator can see afterward what happened while the context
+			// was quiet, and it starts a cooldown so a sustained breach is not
+			// written once per count for the length of the mute.
 			lastAlertTime = time.Now()
-			outcome.breach = models.BreachDetail{
-				Timestamp: lastAlertTime,
-				PIIType:   piiType,
-				Context:   contextName,
-				Org:       organization,
-				SourceID:  sourceID,
-				Count:     currentCount,
-				Average:   tracker.Mean,
-				ZScore:    val,
-			}
+			lastAlertMuted = true
+			outcome.suppressed = suppressMute
+			outcome.message = fmt.Sprintf("[MUTED] %s", msg)
+			breach.Timestamp = lastAlertTime
+			outcome.breach = breach
+
+		default:
+			lastAlertTime = time.Now()
+			lastAlertMuted = false
+			breach.Timestamp = lastAlertTime
+			outcome.breach = breach
 		}
 	}
 
@@ -442,6 +533,7 @@ func (a *API) evaluateTrend(ctx context.Context, sourceID string, organization s
 		Mean:              tracker.Mean,
 		M2:                tracker.M2,
 		LastAlertTime:     lastAlertTime,
+		LastAlertMuted:    lastAlertMuted,
 		ConsecutiveNormal: consecutiveNormal,
 		Version:           stats.Version,
 	}
@@ -456,22 +548,36 @@ func (a *API) reportTrend(ctx context.Context, outcome trendOutcome) {
 		return
 	}
 
-	if outcome.suppressed {
+	// A cooldown means the series alerted recently and that breach is already
+	// on record, so this one is neither announced nor recorded.
+	if outcome.suppressed == suppressCooldown {
 		log.Print(outcome.message)
+		return
+	}
+
+	// A mute silences the notification only. The breach is recorded so the
+	// dashboard timeline shows what happened while the context was quiet.
+	if outcome.suppressed == suppressMute {
+		log.Print(outcome.message)
+		a.saveBreach(ctx, outcome.breach)
 		return
 	}
 
 	fmt.Println(outcome.message)
 	log.Print(outcome.message)
 
-	if err := a.storage.SaveBreach(ctx, outcome.breach); err != nil {
-		log.Printf("Error saving breach: %v", err)
-	}
+	a.saveBreach(ctx, outcome.breach)
 
 	if a.notifier != nil {
 		if err := a.notifier.Notify(ctx, outcome.message); err != nil {
 			log.Printf("Error sending notification: %v", err)
 		}
+	}
+}
+
+func (a *API) saveBreach(ctx context.Context, breach models.BreachDetail) {
+	if err := a.storage.SaveBreach(ctx, breach); err != nil {
+		log.Printf("Error saving breach: %v", err)
 	}
 }
 
@@ -486,9 +592,37 @@ func (a *API) handleReplay(c *gin.Context) {
 		return
 	}
 
+	// An inverted range scans nothing and would return an empty result, which
+	// a caller who transposed the fields reads as "no breaches".
+	if req.EndTime.Before(req.StartTime) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "end_time must not precede start_time"})
+		return
+	}
+
+	if maxWindow := a.replayLimits.MaxWindow; maxWindow > 0 && req.EndTime.Sub(req.StartTime) > maxWindow {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("replay window must not exceed %d hours", int(maxWindow.Hours())),
+		})
+		return
+	}
+
 	if req.TestThreshold <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "test_threshold must be greater than 0"})
 		return
+	}
+
+	// A replay holds its connection while it scans. Rejecting rather than
+	// queueing means a client that retries on timeout cannot stack work.
+	if a.replaySem != nil {
+		select {
+		case a.replaySem <- struct{}{}:
+			defer func() { <-a.replaySem }()
+		default:
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": fmt.Sprintf("too many concurrent replays; at most %d may run at once", a.replayLimits.MaxConcurrent),
+			})
+			return
+		}
 	}
 
 	resp, err := a.RunReplay(c.Request.Context(), req)
@@ -508,6 +642,11 @@ type simEntry struct {
 func (a *API) RunReplay(ctx context.Context, req models.ReplayRequest) (models.ReplayResponse, error) {
 	entryChan, errChan := a.storage.GetEntries(ctx, req.StartTime, req.EndTime)
 
+	// The z-score method needs only a series' running statistics, which
+	// Welford's algorithm maintains one point at a time, so it keeps a tracker
+	// rather than the points. The percentage-delta method compares against the
+	// counts in its lookback window, so it keeps those.
+	trackers := make(map[string]*trend.StatTracker)
 	history := make(map[string][]simEntry)
 
 	resp := models.ReplayResponse{
@@ -544,19 +683,20 @@ func (a *API) RunReplay(ctx context.Context, req models.ReplayRequest) (models.R
 				var avg float64
 
 				if a.trendMethod == trend.MethodZScore {
-					currentStats := history[key]
-					tracker := trend.StatTracker{}
-					for _, h := range currentStats {
-						tracker.Update(float64(h.count))
+					tracker := trackers[key]
+					if tracker == nil {
+						tracker = &trend.StatTracker{}
+						trackers[key] = tracker
 					}
 
+					// The tracker holds every earlier point in the series, so
+					// it is read before this point is added to it.
 					if tracker.Count >= a.warmUpCount {
 						val, breached = trend.CalculateBreach(a.trendMethod, currentCount, tracker.Mean, req.TestThreshold, tracker.StdDev())
 					}
 					avg = tracker.Mean
 
-					// Update history for next point
-					history[key] = append(history[key], simEntry{timestamp: entry.Timestamp, count: currentCount})
+					tracker.Update(float64(currentCount))
 				} else {
 					lookback := entry.Timestamp.Add(-time.Duration(a.windowSize) * time.Hour)
 
@@ -583,6 +723,13 @@ func (a *API) RunReplay(ctx context.Context, req models.ReplayRequest) (models.R
 
 				if breached {
 					resp.VirtualBreachesDetected++
+
+					maxDetails := a.replayLimits.MaxBreachDetails
+					if maxDetails > 0 && len(resp.BreachDetails) >= maxDetails {
+						resp.BreachDetailsTruncated = true
+						continue
+					}
+
 					detail := models.BreachDetail{
 						Timestamp: entry.Timestamp,
 						PIIType:   piiType,

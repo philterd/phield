@@ -19,8 +19,8 @@ Initial release.
 - Two detection methods: `percentage_delta`, which alerts on a fractional increase over the moving average, and `z_score`, which alerts on statistical significance.
 - The `z_score` baseline is maintained with Welford's algorithm, so each series learns its own normal volatility, and alerts are held back until a warm-up period has passed.
 - Alert cooldown suppresses repeat alerts for a series, and the cooldown resets after a run of normal counts.
-- `POST /mute` suppresses alerts for a context for a set number of minutes.
-- `POST /replay` re-runs detection over historical counts with a test threshold, reporting what would have alerted without sending notifications, recording breaches, or changing stored baselines.
+- `POST /mute` suppresses alerts for a context for a set number of minutes. Muting affects alerting only: baselines, the warm-up counter, and the back-to-normal reset all keep advancing, and a breach detected during a mute is recorded without being notified.
+- `POST /replay` re-runs detection over historical counts with a test threshold, reporting what would have alerted without sending notifications, recording breaches, or changing stored baselines. Under `z_score`, replay maintains each series' statistics incrementally, so replaying a long history costs time proportional to its length rather than to its square.
 
 ### Storage
 
@@ -42,6 +42,7 @@ Initial release.
 
 - Optional API key authentication through `PHIELD_API_KEY`, required on `/ingest`, `/mute`, and `/replay`. The reads that stay open return aggregate counts and contain no PII.
 - HTTPS with a certificate that the container generates on start, so each container has its own rather than one shared by every image pull. A mounted certificate is used as-is.
-- Prometheus metrics at `/metrics` and a liveness check at `/health`.
+- Prometheus metrics at `/metrics` and a health check at `/health` reporting `status` and `applicationVersion`.
+- Replay is bounded: `PHIELD_MAX_REPLAY_HOURS` caps the window it may scan, `PHIELD_MAX_REPLAY_BREACH_DETAILS` caps how many breaches come back in full (with `breach_details_truncated` set when the list is short), and `PHIELD_MAX_CONCURRENT_REPLAYS` caps how many run at once. An `end_time` before `start_time` is rejected rather than reported as no breaches.
 - Graceful shutdown on `SIGINT` and `SIGTERM`.
 - Configuration entirely through environment variables. See the [configuration reference](https://philterd.github.io/phield/configuration/).

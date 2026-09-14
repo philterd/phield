@@ -27,6 +27,9 @@ Phield is configured via environment variables.
 | `PHIELD_WRITE_TIMEOUT_SECONDS` | Time a response has to be written. Raise it if a [replay](api.md#replay-trend-analysis) over a wide window is cut off. `0` is unlimited. | `120` |
 | `PHIELD_IDLE_TIMEOUT_SECONDS` | Time a kept-alive connection may sit between requests. `0` is unlimited. | `60` |
 | `PHIELD_MAX_REQUEST_BYTES` | Largest request body accepted. `0` is unlimited. | `1048576` (1 MB) |
+| `PHIELD_MAX_REPLAY_HOURS` | Widest time range a single [replay](api.md#replay-trend-analysis) may scan. `0` is unlimited. | `2160` (90 days) |
+| `PHIELD_MAX_REPLAY_BREACH_DETAILS` | Breaches a replay returns in full. The total detected is reported either way. `0` is unlimited. | `1000` |
+| `PHIELD_MAX_CONCURRENT_REPLAYS` | Replays that may run at once. Further requests are rejected with `429`. `0` is unlimited. | `1` |
 | `PHIELD_URL` | Simulation: The URL of the Phield ingest API (used by `simulate_data.sh`) | `http://localhost:8080` |
 | `SOURCE_ID` | Simulation: The source ID for the simulated data (used by `simulate_data.sh`) | `simulated-server-01` |
 | `ITERATIONS` | Simulation: The number of baseline data points to send (used by `simulate_data.sh`) | `50` |

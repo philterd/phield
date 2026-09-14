@@ -93,11 +93,16 @@ type BreachDetail struct {
 }
 
 type Stats struct {
-	Count             int       `bson:"count" json:"count"`
-	Mean              float64   `bson:"mean" json:"mean"`
-	M2                float64   `bson:"m2" json:"m2"`
-	LastAlertTime     time.Time `bson:"last_alert_time" json:"last_alert_time"`
-	ConsecutiveNormal int       `bson:"consecutive_normal" json:"consecutive_normal"`
+	Count         int       `bson:"count" json:"count"`
+	Mean          float64   `bson:"mean" json:"mean"`
+	M2            float64   `bson:"m2" json:"m2"`
+	LastAlertTime time.Time `bson:"last_alert_time" json:"last_alert_time"`
+	// LastAlertMuted records that the alert which began the current cooldown
+	// was suppressed by a mute and so reached nobody. The cooldown still
+	// throttles what is recorded during the mute, but it does not silence the
+	// first alert after the mute ends.
+	LastAlertMuted    bool `bson:"last_alert_muted" json:"last_alert_muted"`
+	ConsecutiveNormal int  `bson:"consecutive_normal" json:"consecutive_normal"`
 	// Version guards against two ingests for the same series overwriting each
 	// other. A write carries the version it read, and storage rejects it if the
 	// stored version has moved on. See Storage.SaveStats.
@@ -108,6 +113,10 @@ type ReplayResponse struct {
 	TotalPointsProcessed    int            `json:"total_points_processed"`
 	VirtualBreachesDetected int            `json:"virtual_breaches_detected"`
 	BreachDetails           []BreachDetail `json:"breach_details"`
+	// BreachDetailsTruncated reports that more breaches were detected than
+	// BreachDetails holds, so a short list is not mistaken for a complete one.
+	// VirtualBreachesDetected is the total either way.
+	BreachDetailsTruncated bool `json:"breach_details_truncated"`
 }
 
 type Mute struct {
