@@ -8,6 +8,8 @@ Phield is part of a suite that includes [Phinder](https://www.github.com/philter
 
 See the [documentation](https://philterd.github.io/phield) for installation, configuration, API usage, and notification channels.
 
+Questions, feedback, or want to contribute? [Join the Philterd Slack workspace](https://philterd.ai/slack/) to connect with other users and developers.
+
 ## Quick start
 
 ```bash
